@@ -35,9 +35,9 @@ export function commitPatchSelection(
   select.blur();
 }
 
-// The voice-tuning panel is hidden by default. To iterate on the built-in
-// voice, run with `VITE_VOICE_TUNING=true npm run dev` (or flip this to `true`).
-const SHOW_VOICE_TUNING = import.meta.env.VITE_VOICE_TUNING === 'true';
+// The voice-tuning panel is for iterating on the built-in voice, so it only
+// appears in dev (`npm run dev`), never in a production build.
+const SHOW_VOICE_TUNING = import.meta.env.DEV;
 
 export class App {
   readonly #pointerOwners = new Map<number, string>();
@@ -148,7 +148,7 @@ export class App {
     return `
       <section class="panel voice-panel" aria-labelledby="voice-heading">
         <div class="voice-panel-head">
-          <div><p class="section-label">Development</p><h2 id="voice-heading">Voice tuning</h2><p>Shapes newly played notes.</p></div>
+          <div><p class="section-label">Development</p><h2 id="voice-heading">Voice tuning</h2><p>Shapes newly played notes. Dev build only.</p></div>
           <button id="voice-reset" class="voice-reset">Reset defaults</button>
         </div>
         <div class="voice-grid">${controls}</div>
