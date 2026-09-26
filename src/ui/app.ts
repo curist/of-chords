@@ -35,6 +35,10 @@ export function commitPatchSelection(
   select.blur();
 }
 
+export function isOutputPanelVisible(panel: OutputMode, mode: OutputMode): boolean {
+  return panel === mode;
+}
+
 // The voice-tuning panel is for iterating on the built-in voice, so it only
 // appears in dev (`npm run dev`), never in a production build.
 const SHOW_VOICE_TUNING = import.meta.env.DEV;
@@ -114,7 +118,7 @@ export class App {
             <div class="segmented" id="output-mode" aria-label="Sound output">
               <button data-output="builtin">Built-in</button><button data-output="midi">MIDI</button>
             </div>
-            <button id="panic" class="panic">Panic · All Notes Off</button>
+            <button id="panic" class="panic" data-output-panel="midi">Panic · All Notes Off</button>
           </div>
 
           <div class="output-midi" data-output-panel="midi">
@@ -272,7 +276,7 @@ export class App {
       button.classList.toggle('selected', button.dataset.output === snapshot.mode);
     });
     this.root.querySelectorAll<HTMLElement>('[data-output-panel]').forEach((panel) => {
-      panel.hidden = panel.dataset.outputPanel !== snapshot.mode;
+      panel.hidden = !isOutputPanelVisible(panel.dataset.outputPanel as OutputMode, snapshot.mode);
     });
     if (SHOW_VOICE_TUNING) {
       const voicePanel = this.root.querySelector<HTMLElement>('.voice-panel');

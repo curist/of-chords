@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { commitModeSelection, commitPatchSelection, commitTonicSelection } from './app';
+import { commitModeSelection, commitPatchSelection, commitTonicSelection, isOutputPanelVisible } from './app';
 import type { InstrumentAction } from '../state/instrument';
 
 describe('tonic selection', () => {
@@ -38,5 +38,12 @@ describe('patch selection', () => {
 
     expect(actions).toEqual([{ type: 'select-patch', index: 40 }]);
     expect(blur).toHaveBeenCalledOnce();
+  });
+});
+
+describe('output-specific controls', () => {
+  it('shows MIDI controls only while MIDI is selected', () => {
+    expect(isOutputPanelVisible('midi', 'midi')).toBe(true);
+    expect(isOutputPanelVisible('midi', 'builtin')).toBe(false);
   });
 });
