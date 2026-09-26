@@ -1,14 +1,23 @@
-export interface MidiNoteSink {
+/**
+ * A destination for note events. The ledger and the rest of the performance
+ * engine only speak in terms of note-on / note-off / all-notes-off, so any
+ * output (Web MIDI, the built-in Web Audio synth, a test double) can implement
+ * this and be swapped in without the harmony logic knowing which is active.
+ */
+export interface NoteSink {
   noteOn(note: number, velocity?: number): void;
   noteOff(note: number): void;
   allNotesOff(): void;
 }
 
+/** @deprecated Retained alias for the generalized {@link NoteSink}. */
+export type MidiNoteSink = NoteSink;
+
 export class NoteLedger {
   readonly #owners = new Map<string, readonly number[]>();
   readonly #references = new Map<number, number>();
 
-  constructor(private readonly sink: MidiNoteSink) {}
+  constructor(private readonly sink: NoteSink) {}
 
   get activeOwnerCount(): number {
     return this.#owners.size;

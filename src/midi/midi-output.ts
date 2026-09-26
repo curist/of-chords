@@ -1,4 +1,4 @@
-import type { MidiNoteSink } from './note-ledger';
+import type { NoteSink } from './note-ledger';
 
 interface MidiPortLike {
   readonly id: string;
@@ -53,7 +53,7 @@ export function getOptionalStorage(provider: () => StorageLike = () => localStor
   }
 }
 
-export class WebMidiOutputManager implements MidiNoteSink {
+export class WebMidiOutputManager implements NoteSink {
   #access: MidiAccessLike | null = null;
   #output: MidiPortLike | null = null;
   #status: MidiStatus = 'idle';

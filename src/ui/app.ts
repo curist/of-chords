@@ -1,3 +1,5 @@
+import type { WebAudioSynthSink } from '../audio/synth';
+import { DEFAULT_VOICE, VOICE_PARAM_RANGES, WAVEFORMS, type VoiceParams } from '../audio/voice-params';
 import { CHORD_BINDINGS } from '../config';
 import { resolveChord } from '../music/harmony';
 import { noteNames, TONIC_OPTIONS } from '../music/notes';
@@ -5,6 +7,7 @@ import { MODE_OPTIONS, type Mode } from '../music/scales';
 import { voiceChord } from '../music/voicing';
 import type { WebMidiOutputManager, MidiOutputSnapshot } from '../midi/midi-output';
 import { GENERAL_MIDI_PATCHES } from '../midi/patches';
+import type { OutputController, OutputMode, OutputSnapshot } from '../output/output-controller';
 import type { InstrumentAction, InstrumentState } from '../state/instrument';
 import type { InstrumentStore } from '../state/store';
 
@@ -32,18 +35,25 @@ export function commitPatchSelection(
   select.blur();
 }
 
+const SHOW_DEV_PANEL = import.meta.env.DEV;
+
 export class App {
   readonly #pointerOwners = new Map<number, string>();
+  #latestMidi: MidiOutputSnapshot | null = null;
+  #mode: OutputMode = 'builtin';
 
   constructor(
     private readonly root: HTMLElement,
     private readonly store: InstrumentStore,
     private readonly midi: WebMidiOutputManager,
+    private readonly output: OutputController,
+    private readonly synth: WebAudioSynthSink,
   ) {
     this.#renderShell();
     this.#bindControls();
     this.store.subscribe((state) => this.#renderInstrument(state));
     this.midi.subscribe((snapshot) => this.#renderMidi(snapshot));
+    this.output.subscribe((snapshot) => this.#renderOutput(snapshot));
   }
 
   #renderShell(): void {
@@ -51,7 +61,7 @@ export class App {
       <main class="instrument">
         <header class="hero">
           <p class="eyebrow">WebChords · Browser harmony instrument</p>
-          <div class="status-pill" id="midi-status-pill"><span></span><b>Waiting for MIDI</b></div>
+          <div class="status-pill" id="output-status-pill"><span></span><b>Built-in voice</b></div>
         </header>
 
         <section class="panel setup" aria-labelledby="harmony-heading">
@@ -96,21 +106,56 @@ export class App {
           </article>
         </section>
 
-        <section class="panel midi-panel" aria-labelledby="midi-heading">
-          <div><p class="section-label">Output</p><h2 id="midi-heading">Web MIDI</h2><p id="midi-message">Requesting MIDI access…</p></div>
-          <label>MIDI Output<select id="midi-output"><option value="">No output selected</option></select></label>
-          <button id="panic" class="panic">Panic · All Notes Off</button>
-          <div class="patch-controls">
-            <label>Patch control<select id="patch-profile"><option value="off">Off · destination controlled</option><option value="gm">General MIDI</option></select></label>
-            <button id="previous-patch" aria-label="Previous General MIDI patch"><span>←</span><kbd>[</kbd></button>
-            <div class="patch-readout">
-              <select id="patch-select" aria-label="General MIDI program">${GENERAL_MIDI_PATCHES.map((patch) => `<option value="${patch.program}">${patch.program + 1} · ${patch.name}</option>`).join('')}</select>
-              <small id="patch-number"></small><small class="patch-caveat">GM names require a GM-compatible destination.</small>
+        <section class="panel output-panel" aria-labelledby="output-heading">
+          <div class="output-head">
+            <div><p class="section-label">Output</p><h2 id="output-heading">Sound output</h2><p id="output-message"></p></div>
+            <div class="segmented" id="output-mode" aria-label="Sound output">
+              <button data-output="builtin">Built-in</button><button data-output="midi">MIDI</button>
             </div>
-            <button id="next-patch" aria-label="Next General MIDI patch"><span>→</span><kbd>]</kbd></button>
+            <button id="panic" class="panic">Panic · All Notes Off</button>
+          </div>
+
+          <div class="output-builtin" data-output-panel="builtin">
+            <p class="voice-name">WebChords Voice</p>
+            <p class="voice-hint">A warm built-in polyphonic voice — no MIDI device needed.</p>
+          </div>
+
+          <div class="output-midi" data-output-panel="midi">
+            <label>MIDI Output<select id="midi-output"><option value="">No output selected</option></select></label>
+            <div class="patch-controls">
+              <label>Patch control<select id="patch-profile"><option value="off">Off · destination controlled</option><option value="gm">General MIDI</option></select></label>
+              <button id="previous-patch" aria-label="Previous General MIDI patch"><span>←</span><kbd>[</kbd></button>
+              <div class="patch-readout">
+                <select id="patch-select" aria-label="General MIDI program">${GENERAL_MIDI_PATCHES.map((patch) => `<option value="${patch.program}">${patch.program + 1} · ${patch.name}</option>`).join('')}</select>
+                <small id="patch-number"></small><small class="patch-caveat">GM names require a GM-compatible destination.</small>
+              </div>
+              <button id="next-patch" aria-label="Next General MIDI patch"><span>→</span><kbd>]</kbd></button>
+            </div>
           </div>
         </section>
+        ${SHOW_DEV_PANEL ? this.#renderDevPanelMarkup() : ''}
       </main>`;
+  }
+
+  #renderDevPanelMarkup(): string {
+    const controls = VOICE_PARAM_RANGES.map((param) => {
+      if (param.kind === 'waveform') {
+        return `<label class="voice-field">${param.label}
+          <select data-voice-param="${param.key}">${WAVEFORMS.map((wave) => `<option value="${wave}">${wave}</option>`).join('')}</select>
+        </label>`;
+      }
+      return `<label class="voice-field">${param.label} <output data-voice-readout="${param.key}"></output>
+        <input type="range" data-voice-param="${param.key}" min="${param.min}" max="${param.max}" step="${param.step}">
+      </label>`;
+    }).join('');
+    return `
+      <section class="panel voice-panel" aria-labelledby="voice-heading">
+        <div class="voice-panel-head">
+          <div><p class="section-label">Development</p><h2 id="voice-heading">Voice tuning</h2><p>Shapes newly played notes. Dev build only.</p></div>
+          <button id="voice-reset" class="voice-reset">Reset defaults</button>
+        </div>
+        <div class="voice-grid">${controls}</div>
+      </section>`;
   }
 
   #bindControls(): void {
@@ -147,10 +192,15 @@ export class App {
     };
     this.root.querySelector('#chord-grid')?.addEventListener('pointerup', releasePointer);
     this.root.querySelector('#chord-grid')?.addEventListener('pointercancel', releasePointer);
+    this.root.querySelector('#output-mode')?.addEventListener('click', (event) => {
+      const button = (event.target as Element).closest<HTMLButtonElement>('[data-output]');
+      if (button) this.output.setMode(button.dataset.output as OutputMode);
+    });
     this.root.querySelector<HTMLSelectElement>('#midi-output')?.addEventListener('change', (event) => {
       this.midi.selectOutput((event.target as HTMLSelectElement).value || null);
     });
     this.root.querySelector('#panic')?.addEventListener('click', () => this.store.dispatch({ type: 'panic' }));
+    if (SHOW_DEV_PANEL) this.#bindDevPanel();
     this.root.querySelector<HTMLSelectElement>('#patch-profile')?.addEventListener('change', (event) => {
       const select = event.target as HTMLSelectElement;
       this.store.dispatch({ type: 'set-patch-enabled', enabled: select.value === 'gm' });
@@ -206,6 +256,7 @@ export class App {
   }
 
   #renderMidi(snapshot: MidiOutputSnapshot): void {
+    this.#latestMidi = snapshot;
     const select = this.root.querySelector<HTMLSelectElement>('#midi-output')!;
     const emptyOption = new Option('No output selected', '');
     const outputOptions = snapshot.outputs.map((output) => new Option(
@@ -215,9 +266,66 @@ export class App {
     select.replaceChildren(emptyOption, ...outputOptions);
     select.value = snapshot.selectedOutputId ?? '';
     select.disabled = snapshot.status !== 'ready' || snapshot.outputs.length === 0;
-    this.root.querySelector<HTMLElement>('#midi-message')!.textContent = snapshot.message;
-    const pill = this.root.querySelector<HTMLElement>('#midi-status-pill')!;
-    pill.dataset.status = snapshot.status;
-    pill.querySelector('b')!.textContent = snapshot.selectedOutputId ? 'MIDI connected' : snapshot.status === 'ready' ? 'MIDI ready' : snapshot.status;
+    this.#renderStatus();
+  }
+
+  #renderOutput(snapshot: OutputSnapshot): void {
+    this.#mode = snapshot.mode;
+    this.root.querySelectorAll<HTMLButtonElement>('[data-output]').forEach((button) => {
+      button.classList.toggle('selected', button.dataset.output === snapshot.mode);
+    });
+    this.root.querySelectorAll<HTMLElement>('[data-output-panel]').forEach((panel) => {
+      panel.hidden = panel.dataset.outputPanel !== snapshot.mode;
+    });
+    if (SHOW_DEV_PANEL) {
+      const voicePanel = this.root.querySelector<HTMLElement>('.voice-panel');
+      if (voicePanel) voicePanel.hidden = snapshot.mode !== 'builtin';
+    }
+    this.#renderStatus();
+  }
+
+  #renderStatus(): void {
+    const pill = this.root.querySelector<HTMLElement>('#output-status-pill')!;
+    const message = this.root.querySelector<HTMLElement>('#output-message')!;
+    if (this.#mode === 'builtin') {
+      pill.dataset.status = 'ready';
+      pill.querySelector('b')!.textContent = 'Built-in voice';
+      message.textContent = 'Playing the built-in WebChords voice.';
+      return;
+    }
+    const midi = this.#latestMidi;
+    pill.dataset.status = midi?.status ?? 'idle';
+    pill.querySelector('b')!.textContent = midi?.selectedOutputId
+      ? 'MIDI connected'
+      : midi?.status === 'ready' ? 'MIDI ready' : midi?.status ?? 'MIDI';
+    message.textContent = midi?.message ?? 'Requesting MIDI access…';
+  }
+
+  #bindDevPanel(): void {
+    this.root.querySelector('.voice-panel')?.addEventListener('input', (event) => {
+      const target = event.target as HTMLInputElement | HTMLSelectElement;
+      const key = target.dataset.voiceParam as keyof VoiceParams | undefined;
+      if (!key) return;
+      const value = target instanceof HTMLSelectElement ? target.value : Number(target.value);
+      this.synth.setParams({ [key]: value } as Partial<VoiceParams>);
+      this.#renderVoiceParams(this.synth.params);
+    });
+    this.root.querySelector('#voice-reset')?.addEventListener('click', () => {
+      this.synth.setParams(DEFAULT_VOICE);
+      this.#renderVoiceParams(DEFAULT_VOICE);
+    });
+    this.#renderVoiceParams(this.synth.params);
+  }
+
+  #renderVoiceParams(params: VoiceParams): void {
+    for (const param of VOICE_PARAM_RANGES) {
+      const value = params[param.key];
+      const control = this.root.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-voice-param="${param.key}"]`);
+      if (control) control.value = String(value);
+      if (param.kind === 'range') {
+        const readout = this.root.querySelector<HTMLOutputElement>(`[data-voice-readout="${param.key}"]`);
+        if (readout) readout.textContent = `${(value as number).toFixed(param.decimals ?? 2)}${param.unit ?? ''}`;
+      }
+    }
   }
 }
