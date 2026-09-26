@@ -78,3 +78,23 @@ describe('Dorian harmony', () => {
     expect(chord.roman).toBe(roman);
   });
 });
+
+describe('Mixolydian harmony', () => {
+  it.each([
+    ['G I', { degree: 1, shape: 'triad' }, ['G', 'B', 'D'], 'I'],
+    ['G iii diminished', { degree: 3, shape: 'triad' }, ['B', 'D', 'F'], 'iii°'],
+    ['G v', { degree: 5, shape: 'triad' }, ['D', 'F', 'A'], 'v'],
+    ['G VII', { degree: 7, shape: 'triad' }, ['F', 'A', 'C'], 'VII'],
+    ['G I7', { degree: 1, shape: 'seventh' }, ['G', 'B', 'D', 'F'], 'I7'],
+  ] as const)('%s resolves mode-aware tones and numerals', (_label, partial, names, roman) => {
+    const chord = resolveChord({
+      tonic: 7,
+      mode: 'mixolydian',
+      degree: partial.degree,
+      shape: partial.shape,
+      inversion: 0,
+    });
+    expect(noteNames(chord.pitchClasses)).toEqual(names);
+    expect(chord.roman).toBe(roman);
+  });
+});

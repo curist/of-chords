@@ -1,6 +1,6 @@
 import { normalizePitchClass, type PitchClass } from './notes';
 
-export type Mode = 'major' | 'naturalMinor' | 'dorian';
+export type Mode = 'major' | 'naturalMinor' | 'dorian' | 'mixolydian';
 
 export interface ScaleDefinition {
   readonly name: string;
@@ -23,6 +23,11 @@ export const SCALES: Record<Mode, ScaleDefinition> = {
     name: 'Dorian',
     intervals: [0, 2, 3, 5, 7, 9, 10],
     romanTriads: ['i', 'ii', 'III', 'IV', 'v', 'vi°', 'VII'],
+  },
+  mixolydian: {
+    name: 'Mixolydian',
+    intervals: [0, 2, 4, 5, 7, 9, 10],
+    romanTriads: ['I', 'ii', 'iii°', 'IV', 'v', 'vi', 'VII'],
   },
 };
 

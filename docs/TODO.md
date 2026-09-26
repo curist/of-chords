@@ -14,6 +14,7 @@ This file tracks work intentionally deferred beyond the first playable MVP. It i
 
 - [x] Add natural minor as the second mode using the existing scale representation.
 - [x] Add Dorian mode with mode-aware diatonic harmony.
+- [x] Add Mixolydian mode with mode-aware diatonic harmony.
 - [ ] Decide accidental-spelling policy for flat keys and modal harmony.
 - [x] Display half-diminished diatonic sevenths with `ø7` Roman notation.
 - [ ] Decide whether suspended degree VII retains its diatonic diminished fifth or uses a perfect fifth.
