@@ -59,6 +59,7 @@ export class WebMidiOutputManager implements MidiNoteSink {
   #status: MidiStatus = 'idle';
   #message = 'MIDI access has not been requested.';
   #destinationWillChange: (() => void) | null = null;
+  #destinationDidChange: (() => void) | null = null;
   #cleanupScheduled = false;
   readonly #listeners = new Set<(snapshot: MidiOutputSnapshot) => void>();
 
@@ -94,6 +95,10 @@ export class WebMidiOutputManager implements MidiNoteSink {
 
   onDestinationWillChange(listener: () => void): void {
     this.#destinationWillChange = listener;
+  }
+
+  onDestinationDidChange(listener: () => void): void {
+    this.#destinationDidChange = listener;
   }
 
   async initialize(): Promise<void> {
@@ -140,6 +145,10 @@ export class WebMidiOutputManager implements MidiNoteSink {
     this.#send([0xb0, 120, 0]);
   }
 
+  programChange(program: number): void {
+    this.#send([0xc0, program]);
+  }
+
   #refreshSelection(): void {
     if (!this.#access) return;
     const remembered = this.#storageGet();
@@ -169,8 +178,14 @@ export class WebMidiOutputManager implements MidiNoteSink {
   }
 
   #changeOutput(nextOutput: MidiPortLike | null): void {
-    if (this.#output && this.#output !== nextOutput) this.#destinationWillChange?.();
+    const changed = this.#output !== nextOutput;
+    if (this.#output && changed) this.#destinationWillChange?.();
     this.#output = nextOutput;
+    if (changed && nextOutput) {
+      queueMicrotask(() => {
+        if (this.#output === nextOutput) this.#destinationDidChange?.();
+      });
+    }
   }
 
   #send(data: number[]): void {
@@ -179,7 +194,7 @@ export class WebMidiOutputManager implements MidiNoteSink {
       this.#output.send(data);
     } catch {
       this.#output = null;
-      this.#status = 'error';
+      this.#status = 'ready';
       this.#message = 'MIDI output became unavailable. Select an output to reconnect.';
       this.#emit();
       if (!this.#cleanupScheduled) {

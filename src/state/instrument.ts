@@ -23,6 +23,10 @@ export interface InstrumentState {
   readonly register: number;
   readonly active: Readonly<Record<string, ActiveChord>>;
   readonly history: readonly ActiveChord[];
+  readonly patch: {
+    readonly enabled: boolean;
+    readonly index: number;
+  };
 }
 
 export type InstrumentAction =
@@ -32,11 +36,15 @@ export type InstrumentAction =
   | { readonly type: 'set-mode'; readonly mode: Mode }
   | { readonly type: 'set-shape'; readonly shape: ChordShape }
   | { readonly type: 'set-inversion'; readonly inversion: Inversion }
+  | { readonly type: 'set-patch-enabled'; readonly enabled: boolean }
+  | { readonly type: 'step-patch'; readonly direction: -1 | 1 }
+  | { readonly type: 'resend-patch' }
   | { readonly type: 'panic' };
 
 export type InstrumentEffect =
   | { readonly type: 'acquire'; readonly owner: string; readonly notes: readonly number[] }
   | { readonly type: 'release'; readonly owner: string }
+  | { readonly type: 'program-change'; readonly program: number }
   | { readonly type: 'panic' };
 
 export interface InstrumentTransition {
@@ -53,6 +61,7 @@ export function createInitialState(): InstrumentState {
     register: 3,
     active: {},
     history: [],
+    patch: { enabled: false, index: 0 },
   };
 }
 
@@ -101,6 +110,27 @@ export function reduceInstrument(state: InstrumentState, action: InstrumentActio
       return action.shape === state.shape ? { state, effects: [] } : { state: { ...state, shape: action.shape }, effects: [] };
     case 'set-inversion':
       return action.inversion === state.inversion ? { state, effects: [] } : { state: { ...state, inversion: action.inversion }, effects: [] };
+    case 'set-patch-enabled':
+      return {
+        state: {
+          ...state,
+          active: action.enabled ? {} : state.active,
+          patch: { ...state.patch, enabled: action.enabled },
+        },
+        effects: action.enabled ? [{ type: 'panic' }, { type: 'program-change', program: state.patch.index }] : [],
+      };
+    case 'step-patch': {
+      if (!state.patch.enabled) return { state, effects: [] };
+      const index = (state.patch.index + action.direction + 128) % 128;
+      return {
+        state: { ...state, active: {}, patch: { ...state.patch, index } },
+        effects: [{ type: 'panic' }, { type: 'program-change', program: index }],
+      };
+    }
+    case 'resend-patch':
+      return state.patch.enabled
+        ? { state, effects: [{ type: 'program-change', program: state.patch.index }] }
+        : { state, effects: [] };
     case 'panic':
       return { state: { ...state, active: {} }, effects: [{ type: 'panic' }] };
   }

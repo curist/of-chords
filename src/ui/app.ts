@@ -4,6 +4,7 @@ import { noteNames, TONIC_OPTIONS } from '../music/notes';
 import { MODE_OPTIONS, type Mode } from '../music/scales';
 import { voiceChord } from '../music/voicing';
 import type { WebMidiOutputManager, MidiOutputSnapshot } from '../midi/midi-output';
+import { GENERAL_MIDI_PATCHES } from '../midi/patches';
 import type { InstrumentAction, InstrumentState } from '../state/instrument';
 import type { InstrumentStore } from '../state/store';
 
@@ -91,6 +92,12 @@ export class App {
           <div><p class="section-label">Output</p><h2 id="midi-heading">Web MIDI</h2><p id="midi-message">Requesting MIDI access…</p></div>
           <label>MIDI Output<select id="midi-output"><option value="">No output selected</option></select></label>
           <button id="panic" class="panic">Panic · All Notes Off</button>
+          <div class="patch-controls">
+            <label>Patch control<select id="patch-profile"><option value="off">Off · destination controlled</option><option value="gm">General MIDI</option></select></label>
+            <button id="previous-patch" aria-label="Previous General MIDI patch"><kbd>[</kbd> ←</button>
+            <div class="patch-readout"><strong id="patch-name">Destination controlled</strong><small id="patch-number"></small><small class="patch-caveat">GM names require a GM-compatible destination.</small></div>
+            <button id="next-patch" aria-label="Next General MIDI patch">→ <kbd>]</kbd></button>
+          </div>
         </section>
       </main>`;
   }
@@ -133,6 +140,13 @@ export class App {
       this.midi.selectOutput((event.target as HTMLSelectElement).value || null);
     });
     this.root.querySelector('#panic')?.addEventListener('click', () => this.store.dispatch({ type: 'panic' }));
+    this.root.querySelector<HTMLSelectElement>('#patch-profile')?.addEventListener('change', (event) => {
+      const select = event.target as HTMLSelectElement;
+      this.store.dispatch({ type: 'set-patch-enabled', enabled: select.value === 'gm' });
+      select.blur();
+    });
+    this.root.querySelector('#previous-patch')?.addEventListener('click', () => this.store.dispatch({ type: 'step-patch', direction: -1 }));
+    this.root.querySelector('#next-patch')?.addEventListener('click', () => this.store.dispatch({ type: 'step-patch', direction: 1 }));
   }
 
   #renderInstrument(state: InstrumentState): void {
@@ -166,6 +180,13 @@ export class App {
     historyNames.classList.toggle('empty-state', state.history.length === 0);
     historyNames.textContent = state.history.length ? state.history.map((chord) => chord.name).join(' → ') : 'No chords yet';
     this.root.querySelector<HTMLElement>('#history-romans')!.textContent = state.history.map((chord) => chord.roman).join(' → ');
+
+    const patch = GENERAL_MIDI_PATCHES[state.patch.index];
+    const patchProfile = this.root.querySelector<HTMLSelectElement>('#patch-profile')!;
+    patchProfile.value = state.patch.enabled ? 'gm' : 'off';
+    this.root.querySelector<HTMLElement>('#patch-name')!.textContent = state.patch.enabled ? patch.name : 'Destination controlled';
+    this.root.querySelector<HTMLElement>('#patch-number')!.textContent = state.patch.enabled ? `Program ${patch.program + 1} · MIDI ${patch.program}` : '';
+    this.root.querySelectorAll<HTMLButtonElement>('#previous-patch, #next-patch').forEach((button) => { button.disabled = !state.patch.enabled; });
   }
 
   #renderMidi(snapshot: MidiOutputSnapshot): void {

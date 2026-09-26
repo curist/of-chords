@@ -7,6 +7,7 @@ class RecordingTarget implements InstrumentEffectTarget {
   acquire(owner: string, notes: readonly number[]): void { this.events.push(`acquire:${owner}:${notes.join(',')}`); }
   release(owner: string): void { this.events.push(`release:${owner}`); }
   panic(): void { this.events.push('panic'); }
+  programChange(program: number): void { this.events.push(`program:${program}`); }
 }
 
 describe('instrument reducer and store', () => {
@@ -62,5 +63,28 @@ describe('instrument reducer and store', () => {
       'acquire:a:48,52,55', 'acquire:s:50,53,57', 'release:a', 'panic',
     ]);
     expect(store.getState().active).toEqual({});
+  });
+
+  it('keeps patch control off until explicitly enabled', () => {
+    const result = reduceInstrument(createInitialState(), { type: 'resend-patch' });
+    expect(result.state.patch).toMatchObject({ enabled: false, index: 0 });
+    expect(result.effects).toEqual([]);
+  });
+
+  it('enables the GM patch profile and sends its current program after panic', () => {
+    const result = reduceInstrument(createInitialState(), { type: 'set-patch-enabled', enabled: true });
+    expect(result.state.patch).toMatchObject({ enabled: true, index: 0 });
+    expect(result.effects).toEqual([{ type: 'panic' }, { type: 'program-change', program: 0 }]);
+  });
+
+  it('wraps patch stepping in both directions and clears held chords', () => {
+    let state = reduceInstrument(createInitialState(), { type: 'set-patch-enabled', enabled: true }).state;
+    state = reduceInstrument(state, { type: 'press', owner: 'a', degree: 1 }).state;
+    const previous = reduceInstrument(state, { type: 'step-patch', direction: -1 });
+    expect(previous.state.patch.index).toBe(127);
+    expect(previous.state.active).toEqual({});
+    expect(previous.effects).toEqual([{ type: 'panic' }, { type: 'program-change', program: 127 }]);
+    const next = reduceInstrument(previous.state, { type: 'step-patch', direction: 1 });
+    expect(next.state.patch.index).toBe(0);
   });
 });

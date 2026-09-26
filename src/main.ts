@@ -10,8 +10,14 @@ if (!root) throw new Error('Missing #app root element.');
 
 const midi = new WebMidiOutputManager();
 const ledger = new NoteLedger(midi);
-const store = new InstrumentStore(ledger);
+const store = new InstrumentStore({
+  acquire: (owner, notes) => ledger.acquire(owner, notes),
+  release: (owner) => ledger.release(owner),
+  panic: () => ledger.panic(),
+  programChange: (program) => midi.programChange(program),
+});
 midi.onDestinationWillChange(() => store.dispatch({ type: 'panic' }));
+midi.onDestinationDidChange(() => store.dispatch({ type: 'resend-patch' }));
 
 new App(root, store, midi);
 new KeyboardInput(window as unknown as KeyboardEventTarget, (action) => store.dispatch(action)).attach();

@@ -30,6 +30,7 @@ This file tracks work intentionally deferred beyond the first playable MVP. It i
 - [ ] Add keyboard activation and explicit ARIA selection state to chord, shape, and inversion controls.
 - [ ] Test accessibility with keyboard-only and screen-reader workflows.
 - [ ] Consider installable/offline packaging after the interaction model stabilizes.
+- [ ] Add importable custom/device patch profiles with optional Bank Select MSB/LSB values.
 
 ## Explicit non-goals
 

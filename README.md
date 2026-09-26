@@ -20,6 +20,8 @@ Open the local URL shown by Vite, grant MIDI access, and select the FluidSynth (
 - Choose triad, 7th, sus2, or sus4 and root, first, or second inversion.
 - Modifier changes apply to the next chord press. Already-held chords retain their notes until released.
 - Use **Panic · All Notes Off** if an external device ever sustains unexpectedly.
+- Patch control is off by default. Enable the General MIDI profile to cycle through its 128 known programs with wrapping Previous/Next controls or the `[` and `]` keys.
+- General MIDI names are a convenience profile; arbitrary MIDI destinations may map program numbers differently.
 
 The app also releases tracked notes on window blur, page hide, and visibility loss. Multiple held chords safely share notes through reference counting.
 

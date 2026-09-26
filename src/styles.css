@@ -47,6 +47,15 @@ kbd { display: inline-grid; place-items: center; min-width: 28px; min-height: 27
 .midi-panel select { min-width: 250px; }
 .panic { padding: 13px 18px; border: 1px solid #ba564b; border-radius: 10px; background: #4c211e; cursor: pointer; font-weight: 700; }
 .panic:hover { background: #c15d50; }
+.patch-controls { grid-column: 1 / -1; display: grid; grid-template-columns: auto 42px minmax(220px, 1fr) 42px; align-items: end; gap: 8px; padding-top: 16px; border-top: 1px solid #39362e; }
+.patch-controls label { margin: 0; }
+.patch-controls button { height: 42px; border: 1px solid #454138; border-radius: 9px; background: #25231e; cursor: pointer; }
+.patch-controls button kbd { min-width: 20px; min-height: 20px; padding: 1px 4px; font-size: 9px; }
+.patch-controls button:disabled { opacity: .35; cursor: default; }
+.patch-readout { align-self: stretch; display: flex; flex-direction: column; justify-content: center; padding: 0 13px; border: 1px solid #3f3b32; border-radius: 9px; background: #151512; }
+.patch-readout strong { font-size: 13px; }
+.patch-readout small { margin-top: 2px; color: #918b7d; font: 400 10px ui-monospace, monospace; }
+.patch-readout .patch-caveat { color: #c19c4d; }
 .status-pill { display: flex; align-items: center; gap: 9px; padding: 9px 13px; border: 1px solid #3f3b32; border-radius: 999px; color: #aaa394; font-size: 12px; }
 .status-pill span { width: 8px; height: 8px; border-radius: 50%; background: #706a5f; }
 .status-pill[data-status="ready"] span { background: #83c36c; box-shadow: 0 0 9px #83c36c; }
@@ -57,6 +66,11 @@ kbd { display: inline-grid; place-items: center; min-width: 28px; min-height: 27
   .chord-grid { grid-template-columns: repeat(4, 1fr); }
   .readout-grid, .midi-panel { grid-template-columns: 1fr; }
   .midi-panel label, .midi-panel select { width: 100%; }
+  .patch-controls { grid-template-columns: 64px minmax(0, 1fr) 64px; }
+  .patch-controls label { grid-column: 1 / -1; }
+  .patch-controls #previous-patch { grid-column: 1; }
+  .patch-controls .patch-readout { grid-column: 2; }
+  .patch-controls #next-patch { grid-column: 3; }
 }
 @media (max-width: 560px) {
   .instrument { width: min(100% - 20px, 1180px); padding-top: 24px; }

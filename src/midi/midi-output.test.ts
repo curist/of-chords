@@ -59,7 +59,11 @@ describe('WebMidiOutputManager failure boundaries', () => {
     expect(() => manager.noteOn(48)).not.toThrow();
     await Promise.resolve();
     expect(cleanup).toHaveBeenCalledOnce();
-    expect(manager.snapshot()).toMatchObject({ status: 'error', selectedOutputId: null });
+    expect(manager.snapshot()).toMatchObject({
+      status: 'ready',
+      selectedOutputId: null,
+      message: 'MIDI output became unavailable. Select an output to reconnect.',
+    });
   });
 
   it('requests cleanup before switching outputs', async () => {
@@ -73,5 +77,49 @@ describe('WebMidiOutputManager failure boundaries', () => {
     manager.selectOutput('two');
     expect(cleanup).toHaveBeenCalledOnce();
     expect(manager.snapshot().selectedOutputId).toBe('two');
+  });
+
+  it('sends MIDI 1.0 program change on channel one', async () => {
+    const messages: number[][] = [];
+    const output = { id: 'one', name: 'Synth', state: 'connected' as const, send(data: number[]) { messages.push(data); } };
+    const manager = new WebMidiOutputManager(fakeNavigator(fakeAccess([output])), null);
+    await manager.initialize();
+    manager.selectOutput('one');
+    manager.programChange(40);
+    expect(messages).toEqual([[0xc0, 40]]);
+  });
+
+  it('keeps output selection recoverable when automatic patch resend fails', async () => {
+    let shouldThrow = true;
+    const messages: number[][] = [];
+    const output = {
+      id: 'one', name: 'Synth', state: 'connected' as const,
+      send(data: number[]) {
+        if (shouldThrow) throw new DOMException('gone', 'InvalidStateError');
+        messages.push(data);
+      },
+    };
+    const stored = new Map<string, string>();
+    const storage = {
+      getItem(key: string) { return stored.get(key) ?? null; },
+      setItem(key: string, value: string) { stored.set(key, value); },
+      removeItem(key: string) { stored.delete(key); },
+    };
+    const access = fakeAccess([output]);
+    const manager = new WebMidiOutputManager(fakeNavigator(access), storage);
+    manager.onDestinationDidChange(() => manager.programChange(0));
+    await manager.initialize();
+    manager.selectOutput('one');
+    await Promise.resolve();
+
+    expect(manager.snapshot()).toMatchObject({ status: 'ready', selectedOutputId: null });
+    expect(manager.snapshot().message).toContain('unavailable');
+    expect([...stored.values()]).toEqual(['one']);
+
+    shouldThrow = false;
+    access.onstatechange?.();
+    await Promise.resolve();
+    expect(manager.snapshot()).toMatchObject({ status: 'ready', selectedOutputId: 'one' });
+    expect(messages).toEqual([[0xc0, 0]]);
   });
 });

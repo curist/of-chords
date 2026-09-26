@@ -4,6 +4,7 @@ export interface InstrumentEffectTarget {
   acquire(owner: string, notes: readonly number[]): void;
   release(owner: string): void;
   panic(): void;
+  programChange(program: number): void;
 }
 
 export class InstrumentStore {
@@ -41,6 +42,7 @@ export class InstrumentStore {
     switch (effect.type) {
       case 'acquire': this.target.acquire(effect.owner, effect.notes); break;
       case 'release': this.target.release(effect.owner); break;
+      case 'program-change': this.target.programChange(effect.program); break;
       case 'panic': this.target.panic(); break;
     }
   }

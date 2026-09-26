@@ -26,11 +26,16 @@ describe('KeyboardInput', () => {
     target.emit('keydown', 'KeyA', true);
     target.emit('keyup', 'KeyA');
     target.emit('keydown', 'KeyZ');
+    target.emit('keydown', 'BracketLeft');
+    target.emit('keydown', 'BracketRight');
+    target.emit('keydown', 'BracketRight', true);
     detach();
     target.emit('keydown', 'KeyS');
     expect(actions).toEqual([
       { type: 'press', owner: 'keyboard:KeyA', degree: 1 },
       { type: 'release', owner: 'keyboard:KeyA' },
+      { type: 'step-patch', direction: -1 },
+      { type: 'step-patch', direction: 1 },
     ]);
   });
 });
