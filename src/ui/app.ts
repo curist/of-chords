@@ -34,6 +34,14 @@ export function commitProgramSelection(
   input.blur();
 }
 
+export function commitVoiceSelection(
+  select: HTMLSelectElement,
+  apply: (value: string) => void,
+): void {
+  apply(select.value);
+  select.blur();
+}
+
 export function isOutputPanelVisible(panel: OutputMode, mode: OutputMode): boolean {
   return panel === mode;
 }
@@ -293,8 +301,11 @@ export class App {
       const target = event.target as HTMLInputElement | HTMLSelectElement;
       const key = target.dataset.voiceParam as keyof VoiceParams | undefined;
       if (!key) return;
-      const value = target instanceof HTMLSelectElement ? target.value : Number(target.value);
-      this.synth.setParams({ [key]: value } as Partial<VoiceParams>);
+      if (target instanceof HTMLSelectElement) {
+        commitVoiceSelection(target, (value) => this.synth.setParams({ [key]: value } as Partial<VoiceParams>));
+      } else {
+        this.synth.setParams({ [key]: Number(target.value) } as Partial<VoiceParams>);
+      }
       this.#renderVoiceParams(this.synth.params);
     });
     this.root.querySelector('#voice-reset')?.addEventListener('click', () => {
