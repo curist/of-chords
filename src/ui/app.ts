@@ -132,8 +132,7 @@ export class App {
             <label>MIDI Output<select id="midi-output"><option value="">No output selected</option></select></label>
             <div class="program-controls">
               <button id="previous-program" aria-label="Previous MIDI program"><span>←</span><kbd>[</kbd></button>
-              <label>Program<input id="program-input" type="number" min="1" max="128" placeholder="—" aria-describedby="program-number"></label>
-              <small id="program-number">No program selected.</small>
+              <label><span>Program <small id="program-number">No program selected.</small></span><input id="program-input" type="number" min="1" max="128" placeholder="—" aria-describedby="program-number"></label>
               <button id="next-program" aria-label="Next MIDI program"><span>→</span><kbd>]</kbd></button>
             </div>
           </div>
