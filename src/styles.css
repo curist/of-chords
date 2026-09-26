@@ -52,8 +52,8 @@ kbd { display: inline-grid; place-items: center; min-width: 28px; min-height: 27
 .patch-controls button { height: 42px; border: 1px solid #454138; border-radius: 9px; background: #25231e; cursor: pointer; }
 .patch-controls button kbd { min-width: 20px; min-height: 20px; padding: 1px 4px; font-size: 9px; }
 .patch-controls button:disabled { opacity: .35; cursor: default; }
-.patch-readout { align-self: stretch; display: flex; flex-direction: column; justify-content: center; padding: 0 13px; border: 1px solid #3f3b32; border-radius: 9px; background: #151512; }
-.patch-readout strong { font-size: 13px; }
+.patch-readout { align-self: stretch; display: flex; flex-direction: column; justify-content: center; padding: 7px 10px; border: 1px solid #3f3b32; border-radius: 9px; background: #151512; }
+.patch-readout select { width: 100%; padding-block: 7px; }
 .patch-readout small { margin-top: 2px; color: #918b7d; font: 400 10px ui-monospace, monospace; }
 .patch-readout .patch-caveat { color: #c19c4d; }
 .status-pill { display: flex; align-items: center; gap: 9px; padding: 9px 13px; border: 1px solid #3f3b32; border-radius: 999px; color: #aaa394; font-size: 12px; }

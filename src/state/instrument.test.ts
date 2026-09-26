@@ -87,4 +87,13 @@ describe('instrument reducer and store', () => {
     const next = reduceInstrument(previous.state, { type: 'step-patch', direction: 1 });
     expect(next.state.patch.index).toBe(0);
   });
+
+  it('selects a GM patch directly and sends its program after panic', () => {
+    let state = reduceInstrument(createInitialState(), { type: 'set-patch-enabled', enabled: true }).state;
+    state = reduceInstrument(state, { type: 'press', owner: 'a', degree: 1 }).state;
+    const result = reduceInstrument(state, { type: 'select-patch', index: 40 });
+    expect(result.state.patch.index).toBe(40);
+    expect(result.state.active).toEqual({});
+    expect(result.effects).toEqual([{ type: 'panic' }, { type: 'program-change', program: 40 }]);
+  });
 });

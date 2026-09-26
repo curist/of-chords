@@ -38,6 +38,7 @@ export type InstrumentAction =
   | { readonly type: 'set-inversion'; readonly inversion: Inversion }
   | { readonly type: 'set-patch-enabled'; readonly enabled: boolean }
   | { readonly type: 'step-patch'; readonly direction: -1 | 1 }
+  | { readonly type: 'select-patch'; readonly index: number }
   | { readonly type: 'resend-patch' }
   | { readonly type: 'panic' };
 
@@ -122,6 +123,15 @@ export function reduceInstrument(state: InstrumentState, action: InstrumentActio
     case 'step-patch': {
       if (!state.patch.enabled) return { state, effects: [] };
       const index = (state.patch.index + action.direction + 128) % 128;
+      return {
+        state: { ...state, active: {}, patch: { ...state.patch, index } },
+        effects: [{ type: 'panic' }, { type: 'program-change', program: index }],
+      };
+    }
+    case 'select-patch': {
+      if (!state.patch.enabled) return { state, effects: [] };
+      const index = Math.min(127, Math.max(0, Math.trunc(action.index)));
+      if (index === state.patch.index) return { state, effects: [] };
       return {
         state: { ...state, active: {}, patch: { ...state.patch, index } },
         effects: [{ type: 'panic' }, { type: 'program-change', program: index }],

@@ -24,6 +24,14 @@ export function commitModeSelection(
   select.blur();
 }
 
+export function commitPatchSelection(
+  select: HTMLSelectElement,
+  dispatch: (action: InstrumentAction) => void,
+): void {
+  dispatch({ type: 'select-patch', index: Number(select.value) });
+  select.blur();
+}
+
 export class App {
   readonly #pointerOwners = new Map<number, string>();
 
@@ -95,7 +103,10 @@ export class App {
           <div class="patch-controls">
             <label>Patch control<select id="patch-profile"><option value="off">Off · destination controlled</option><option value="gm">General MIDI</option></select></label>
             <button id="previous-patch" aria-label="Previous General MIDI patch"><kbd>[</kbd> ←</button>
-            <div class="patch-readout"><strong id="patch-name">Destination controlled</strong><small id="patch-number"></small><small class="patch-caveat">GM names require a GM-compatible destination.</small></div>
+            <div class="patch-readout">
+              <select id="patch-select" aria-label="General MIDI program">${GENERAL_MIDI_PATCHES.map((patch) => `<option value="${patch.program}">${patch.program + 1} · ${patch.name}</option>`).join('')}</select>
+              <small id="patch-number"></small><small class="patch-caveat">GM names require a GM-compatible destination.</small>
+            </div>
             <button id="next-patch" aria-label="Next General MIDI patch">→ <kbd>]</kbd></button>
           </div>
         </section>
@@ -147,6 +158,9 @@ export class App {
     });
     this.root.querySelector('#previous-patch')?.addEventListener('click', () => this.store.dispatch({ type: 'step-patch', direction: -1 }));
     this.root.querySelector('#next-patch')?.addEventListener('click', () => this.store.dispatch({ type: 'step-patch', direction: 1 }));
+    this.root.querySelector<HTMLSelectElement>('#patch-select')?.addEventListener('change', (event) => {
+      commitPatchSelection(event.target as HTMLSelectElement, (action) => this.store.dispatch(action));
+    });
   }
 
   #renderInstrument(state: InstrumentState): void {
@@ -184,8 +198,10 @@ export class App {
     const patch = GENERAL_MIDI_PATCHES[state.patch.index];
     const patchProfile = this.root.querySelector<HTMLSelectElement>('#patch-profile')!;
     patchProfile.value = state.patch.enabled ? 'gm' : 'off';
-    this.root.querySelector<HTMLElement>('#patch-name')!.textContent = state.patch.enabled ? patch.name : 'Destination controlled';
-    this.root.querySelector<HTMLElement>('#patch-number')!.textContent = state.patch.enabled ? `Program ${patch.program + 1} · MIDI ${patch.program}` : '';
+    const patchSelect = this.root.querySelector<HTMLSelectElement>('#patch-select')!;
+    patchSelect.value = String(patch.program);
+    patchSelect.disabled = !state.patch.enabled;
+    this.root.querySelector<HTMLElement>('#patch-number')!.textContent = state.patch.enabled ? `Program ${patch.program + 1} · MIDI ${patch.program}` : 'Destination controls the current patch.';
     this.root.querySelectorAll<HTMLButtonElement>('#previous-patch, #next-patch').forEach((button) => { button.disabled = !state.patch.enabled; });
   }
 
