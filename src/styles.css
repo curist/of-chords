@@ -49,7 +49,8 @@ kbd { display: inline-grid; place-items: center; min-width: 28px; min-height: 27
 .panic:hover { background: #c15d50; }
 .patch-controls { grid-column: 1 / -1; display: grid; grid-template-columns: auto 42px minmax(220px, 1fr) 42px; align-items: end; gap: 8px; padding-top: 16px; border-top: 1px solid #39362e; }
 .patch-controls label { margin: 0; }
-.patch-controls button { height: 42px; border: 1px solid #454138; border-radius: 9px; background: #25231e; cursor: pointer; }
+.patch-controls button { height: 48px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid #454138; border-radius: 9px; background: #25231e; cursor: pointer; white-space: nowrap; }
+.patch-controls button span { line-height: 1; }
 .patch-controls button kbd { min-width: 20px; min-height: 20px; padding: 1px 4px; font-size: 9px; }
 .patch-controls button:disabled { opacity: .35; cursor: default; }
 .patch-readout { align-self: stretch; display: flex; flex-direction: column; justify-content: center; padding: 7px 10px; border: 1px solid #3f3b32; border-radius: 9px; background: #151512; }

@@ -102,12 +102,12 @@ export class App {
           <button id="panic" class="panic">Panic · All Notes Off</button>
           <div class="patch-controls">
             <label>Patch control<select id="patch-profile"><option value="off">Off · destination controlled</option><option value="gm">General MIDI</option></select></label>
-            <button id="previous-patch" aria-label="Previous General MIDI patch"><kbd>[</kbd> ←</button>
+            <button id="previous-patch" aria-label="Previous General MIDI patch"><span>←</span><kbd>[</kbd></button>
             <div class="patch-readout">
               <select id="patch-select" aria-label="General MIDI program">${GENERAL_MIDI_PATCHES.map((patch) => `<option value="${patch.program}">${patch.program + 1} · ${patch.name}</option>`).join('')}</select>
               <small id="patch-number"></small><small class="patch-caveat">GM names require a GM-compatible destination.</small>
             </div>
-            <button id="next-patch" aria-label="Next General MIDI patch">→ <kbd>]</kbd></button>
+            <button id="next-patch" aria-label="Next General MIDI patch"><span>→</span><kbd>]</kbd></button>
           </div>
         </section>
       </main>`;
