@@ -3,13 +3,10 @@ export type ChordShape = 'triad' | 'seventh' | 'sus2' | 'sus4';
 export type Inversion = 0 | 1 | 2;
 export type ChordQuality = 'major' | 'minor' | 'diminished' | 'suspended';
 
-const ROMAN_TRIADS = ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'] as const;
-
-export function romanNumeral(degree: ScaleDegree, shape: ChordShape): string {
-  const base = ROMAN_TRIADS[degree - 1];
+export function romanNumeral(base: string, shape: ChordShape, intervals: readonly number[]): string {
   if (shape === 'seventh') {
-    if (degree === 1 || degree === 4) return `${base}maj7`;
-    if (degree === 7) return `${base}7`;
+    if (base.endsWith('°') && intervals[3] === 10) return `${base.slice(0, -1)}ø7`;
+    if (intervals[3] === 11) return `${base}maj7`;
     return `${base}7`;
   }
   if (shape === 'sus2') return `${base}sus2`;

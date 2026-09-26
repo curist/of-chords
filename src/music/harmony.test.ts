@@ -40,3 +40,22 @@ describe('major-key harmony', () => {
     expect(roots).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   });
 });
+
+describe('natural minor harmony', () => {
+  it.each([
+    ['A i', { degree: 1, shape: 'triad' }, ['A', 'C', 'E'], 'i'],
+    ['A ii diminished', { degree: 2, shape: 'triad' }, ['B', 'D', 'F'], 'ii°'],
+    ['A v', { degree: 5, shape: 'triad' }, ['E', 'G', 'B'], 'v'],
+    ['A ii half-diminished seventh', { degree: 2, shape: 'seventh' }, ['B', 'D', 'F', 'A'], 'iiø7'],
+  ] as const)('%s resolves mode-aware tones and numerals', (_label, partial, names, roman) => {
+    const chord = resolveChord({
+      tonic: 9,
+      mode: 'naturalMinor',
+      degree: partial.degree,
+      shape: partial.shape,
+      inversion: 0,
+    });
+    expect(noteNames(chord.pitchClasses)).toEqual(names);
+    expect(chord.roman).toBe(roman);
+  });
+});

@@ -29,6 +29,7 @@ export type InstrumentAction =
   | { readonly type: 'press'; readonly owner: string; readonly degree: ScaleDegree }
   | { readonly type: 'release'; readonly owner: string }
   | { readonly type: 'set-tonic'; readonly tonic: PitchClass }
+  | { readonly type: 'set-mode'; readonly mode: Mode }
   | { readonly type: 'set-shape'; readonly shape: ChordShape }
   | { readonly type: 'set-inversion'; readonly inversion: Inversion }
   | { readonly type: 'panic' };
@@ -94,6 +95,8 @@ export function reduceInstrument(state: InstrumentState, action: InstrumentActio
     }
     case 'set-tonic':
       return action.tonic === state.tonic ? { state, effects: [] } : { state: { ...state, tonic: action.tonic }, effects: [] };
+    case 'set-mode':
+      return action.mode === state.mode ? { state, effects: [] } : { state: { ...state, mode: action.mode }, effects: [] };
     case 'set-shape':
       return action.shape === state.shape ? { state, effects: [] } : { state: { ...state, shape: action.shape }, effects: [] };
     case 'set-inversion':

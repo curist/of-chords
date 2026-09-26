@@ -12,9 +12,9 @@ This file tracks work intentionally deferred beyond the first playable MVP. It i
 
 ## Musical range
 
-- [ ] Add natural minor as the second mode using the existing scale representation.
+- [x] Add natural minor as the second mode using the existing scale representation.
 - [ ] Decide accidental-spelling policy for flat keys and modal harmony.
-- [ ] Display the seventh-degree diatonic seventh as half-diminished (`viiø7`) rather than `vii°7`.
+- [x] Display half-diminished diatonic sevenths with `ø7` Roman notation.
 - [ ] Decide whether suspended degree VII retains its diatonic diminished fifth or uses a perfect fifth.
 - [ ] Explore octave/register controls and wider voicings.
 - [ ] Consider additional extensions only when an interaction experiment needs them.

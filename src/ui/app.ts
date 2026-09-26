@@ -1,6 +1,7 @@
 import { CHORD_BINDINGS } from '../config';
 import { resolveChord } from '../music/harmony';
 import { noteNames, TONIC_OPTIONS } from '../music/notes';
+import { MODE_OPTIONS, type Mode } from '../music/scales';
 import { voiceChord } from '../music/voicing';
 import type { WebMidiOutputManager, MidiOutputSnapshot } from '../midi/midi-output';
 import type { InstrumentAction, InstrumentState } from '../state/instrument';
@@ -11,6 +12,14 @@ export function commitTonicSelection(
   dispatch: (action: InstrumentAction) => void,
 ): void {
   dispatch({ type: 'set-tonic', tonic: Number(select.value) });
+  select.blur();
+}
+
+export function commitModeSelection(
+  select: HTMLSelectElement,
+  dispatch: (action: InstrumentAction) => void,
+): void {
+  dispatch({ type: 'set-mode', mode: select.value as Mode });
   select.blur();
 }
 
@@ -43,7 +52,7 @@ export class App {
           <div>
             <p class="section-label" id="harmony-heading">Harmony</p>
             <label>Key<select id="tonic-select">${TONIC_OPTIONS.map(({ name, value }) => `<option value="${value}">${name}</option>`).join('')}</select></label>
-            <label>Mode<select disabled title="Major is the only mode in this MVP"><option>Major only · MVP</option></select></label>
+            <label>Mode<select id="mode-select">${MODE_OPTIONS.map(({ name, value }) => `<option value="${value}">${name}</option>`).join('')}</select></label>
           </div>
           <div>
             <p class="section-label">Chord</p>
@@ -93,6 +102,9 @@ export class App {
     this.root.querySelector<HTMLSelectElement>('#tonic-select')?.addEventListener('change', (event) => {
       commitTonicSelection(event.target as HTMLSelectElement, (action) => this.store.dispatch(action));
     });
+    this.root.querySelector<HTMLSelectElement>('#mode-select')?.addEventListener('change', (event) => {
+      commitModeSelection(event.target as HTMLSelectElement, (action) => this.store.dispatch(action));
+    });
     this.root.querySelector('#shape-controls')?.addEventListener('click', (event) => {
       const button = (event.target as Element).closest<HTMLButtonElement>('[data-shape]');
       if (button) this.store.dispatch({ type: 'set-shape', shape: button.dataset.shape as 'triad' | 'seventh' | 'sus2' | 'sus4' });
@@ -129,6 +141,8 @@ export class App {
   #renderInstrument(state: InstrumentState): void {
     const tonic = this.root.querySelector<HTMLSelectElement>('#tonic-select');
     if (tonic) tonic.value = String(state.tonic);
+    const mode = this.root.querySelector<HTMLSelectElement>('#mode-select');
+    if (mode) mode.value = state.mode;
     this.root.querySelectorAll<HTMLButtonElement>('[data-shape]').forEach((button) => button.classList.toggle('selected', button.dataset.shape === state.shape));
     this.root.querySelectorAll<HTMLButtonElement>('[data-inversion]').forEach((button) => button.classList.toggle('selected', Number(button.dataset.inversion) === state.inversion));
 

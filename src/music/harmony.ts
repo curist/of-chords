@@ -1,7 +1,7 @@
 import type { ChordQuality, ChordShape, Inversion, ScaleDegree } from './chords';
 import { romanNumeral } from './chords';
 import { normalizePitchClass, noteName, type PitchClass } from './notes';
-import { scaleTone, type Mode } from './scales';
+import { SCALES, scaleTone, type Mode } from './scales';
 
 export interface ChordIntent {
   readonly tonic: PitchClass;
@@ -31,7 +31,11 @@ function chordName(root: PitchClass, quality: ChordQuality, shape: ChordShape, i
   if (shape === 'sus2' || shape === 'sus4') return `${rootName}${shape}`;
   const triadSuffix = quality === 'minor' ? 'm' : quality === 'diminished' ? 'dim' : '';
   if (shape !== 'seventh') return `${rootName}${triadSuffix}`;
-  const seventhSuffix = intervals[3] === 11 ? 'maj7' : quality === 'diminished' ? 'm7♭5' : `${triadSuffix}7`;
+  const seventhSuffix = intervals[3] === 11
+    ? 'maj7'
+    : quality === 'diminished'
+      ? intervals[3] === 9 ? 'dim7' : 'm7♭5'
+      : `${triadSuffix}7`;
   return `${rootName}${seventhSuffix}`;
 }
 
@@ -56,6 +60,6 @@ export function resolveChord(intent: ChordIntent): AbstractChord {
     pitchClasses: tones.map(normalizePitchClass),
     quality,
     name: chordName(root, quality, intent.shape, intervals),
-    roman: romanNumeral(intent.degree, intent.shape),
+    roman: romanNumeral(SCALES[intent.mode].romanTriads[intent.degree - 1], intent.shape, intervals),
   };
 }
