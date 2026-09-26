@@ -1,0 +1,58 @@
+import { describe, expect, it } from 'vitest';
+import { createInitialState, reduceInstrument, type InstrumentAction } from './instrument';
+import { InstrumentStore, type InstrumentEffectTarget } from './store';
+
+class RecordingTarget implements InstrumentEffectTarget {
+  readonly events: string[] = [];
+  acquire(owner: string, notes: readonly number[]): void { this.events.push(`acquire:${owner}:${notes.join(',')}`); }
+  release(owner: string): void { this.events.push(`release:${owner}`); }
+  panic(): void { this.events.push('panic'); }
+}
+
+describe('instrument reducer and store', () => {
+  it('turns a chord press into state and an explicit acquire effect', () => {
+    const result = reduceInstrument(createInitialState(), { type: 'press', owner: 'keyboard:KeyA', degree: 1 });
+    expect(result.state.active['keyboard:KeyA']).toMatchObject({ name: 'C', roman: 'I', notes: [48, 52, 55] });
+    expect(result.effects).toEqual([{ type: 'acquire', owner: 'keyboard:KeyA', notes: [48, 52, 55] }]);
+  });
+
+  it('ignores repeat presses from an active owner', () => {
+    const first = reduceInstrument(createInitialState(), { type: 'press', owner: 'keyboard:KeyA', degree: 1 });
+    const repeat = reduceInstrument(first.state, { type: 'press', owner: 'keyboard:KeyA', degree: 1 });
+    expect(repeat.state).toBe(first.state);
+    expect(repeat.effects).toEqual([]);
+  });
+
+  it('snapshots modifiers for held chords and applies changes to the next press', () => {
+    let state = reduceInstrument(createInitialState(), { type: 'press', owner: 'a', degree: 1 }).state;
+    state = reduceInstrument(state, { type: 'set-shape', shape: 'seventh' }).state;
+    state = reduceInstrument(state, { type: 'press', owner: 'g', degree: 5 }).state;
+    expect(state.active.a.notes).toEqual([48, 52, 55]);
+    expect(state.active.g).toMatchObject({ name: 'G7', notes: [55, 59, 62, 65] });
+  });
+
+  it('stores a bounded recent progression', () => {
+    let state = createInitialState();
+    for (let index = 0; index < 10; index += 1) {
+      state = reduceInstrument(state, { type: 'press', owner: `owner:${index}`, degree: ((index % 7) + 1) as 1 }).state;
+    }
+    expect(state.history).toHaveLength(8);
+    expect(state.history[0].owner).toBe('owner:2');
+  });
+
+  it('runs effects after reducing and panic clears every active owner', () => {
+    const target = new RecordingTarget();
+    const store = new InstrumentStore(target);
+    const actions: InstrumentAction[] = [
+      { type: 'press', owner: 'a', degree: 1 },
+      { type: 'press', owner: 's', degree: 2 },
+      { type: 'release', owner: 'a' },
+      { type: 'panic' },
+    ];
+    actions.forEach((action) => store.dispatch(action));
+    expect(target.events).toEqual([
+      'acquire:a:48,52,55', 'acquire:s:50,53,57', 'release:a', 'panic',
+    ]);
+    expect(store.getState().active).toEqual({});
+  });
+});
