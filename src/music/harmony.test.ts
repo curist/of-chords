@@ -59,3 +59,22 @@ describe('natural minor harmony', () => {
     expect(chord.roman).toBe(roman);
   });
 });
+
+describe('Dorian harmony', () => {
+  it.each([
+    ['D i', { degree: 1, shape: 'triad' }, ['D', 'F', 'A'], 'i'],
+    ['D IV', { degree: 4, shape: 'triad' }, ['G', 'B', 'D'], 'IV'],
+    ['D vi diminished', { degree: 6, shape: 'triad' }, ['B', 'D', 'F'], 'vi°'],
+    ['D IV7', { degree: 4, shape: 'seventh' }, ['G', 'B', 'D', 'F'], 'IV7'],
+  ] as const)('%s resolves mode-aware tones and numerals', (_label, partial, names, roman) => {
+    const chord = resolveChord({
+      tonic: 2,
+      mode: 'dorian',
+      degree: partial.degree,
+      shape: partial.shape,
+      inversion: 0,
+    });
+    expect(noteNames(chord.pitchClasses)).toEqual(names);
+    expect(chord.roman).toBe(roman);
+  });
+});

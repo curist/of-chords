@@ -16,7 +16,7 @@ Open the local URL shown by Vite, grant MIDI access, and select the FluidSynth (
 ## Controls
 
 - Hold `A S D F G H J` for degrees `I ii iii IV V vi vii°`.
-- Choose any chromatic tonic and either Major or Natural minor mode.
+- Choose any chromatic tonic and Major, Natural minor, or Dorian mode.
 - Choose triad, 7th, sus2, or sus4 and root, first, or second inversion.
 - Modifier changes apply to the next chord press. Already-held chords retain their notes until released.
 - Use **Panic · All Notes Off** if an external device ever sustains unexpectedly.
