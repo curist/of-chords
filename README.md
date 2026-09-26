@@ -4,14 +4,14 @@ An experimental browser instrument for playing and understanding major-key diato
 
 ## Run it
 
-Requirements: a Web MIDI-capable browser (Chrome or Edge), Node.js, and an external MIDI destination such as a FluidSynth virtual MIDI port.
+Requirements: Node.js and a modern browser. Web MIDI output additionally requires a compatible browser such as Chrome or Edge and an external destination such as a FluidSynth virtual MIDI port.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open the local URL shown by Vite, grant MIDI access, and select the FluidSynth (or other) output. The app only sends MIDI; it does not produce audio itself.
+Open the local URL shown by Vite. The built-in voice works immediately; optionally select MIDI and grant access to use an external destination.
 
 ## Controls
 
@@ -20,8 +20,7 @@ Open the local URL shown by Vite, grant MIDI access, and select the FluidSynth (
 - Choose triad, 7th, sus2, or sus4 and root, first, or second inversion.
 - Modifier changes apply to the next chord press. Already-held chords retain their notes until released.
 - Use **Panic · All Notes Off** if an external device ever sustains unexpectedly.
-- Patch control is off by default. Enable the General MIDI profile to select any of its 128 programs directly or cycle with wrapping Previous/Next controls and the `[`/`]` keys.
-- General MIDI names are a convenience profile; arbitrary MIDI destinations may map program numbers differently.
+- In MIDI mode, choose program 1–128 directly or cycle with wrapping Previous/Next controls and the `[`/`]` keys. No Program Change is sent until you choose one; the choice is resent when the MIDI output changes.
 
 The app also releases tracked notes on window blur, page hide, and visibility loss. Multiple held chords safely share notes through reference counting.
 

@@ -65,35 +65,35 @@ describe('instrument reducer and store', () => {
     expect(store.getState().active).toEqual({});
   });
 
-  it('keeps patch control off until explicitly enabled', () => {
-    const result = reduceInstrument(createInitialState(), { type: 'resend-patch' });
-    expect(result.state.patch).toMatchObject({ enabled: false, index: 0 });
+  it('does not impose a program before the player chooses one', () => {
+    const result = reduceInstrument(createInitialState(), { type: 'resend-program' });
+    expect(result.state.program).toBeNull();
     expect(result.effects).toEqual([]);
   });
 
-  it('enables the GM patch profile and sends its current program after panic', () => {
-    const result = reduceInstrument(createInitialState(), { type: 'set-patch-enabled', enabled: true });
-    expect(result.state.patch).toMatchObject({ enabled: true, index: 0 });
-    expect(result.effects).toEqual([{ type: 'panic' }, { type: 'program-change', program: 0 }]);
-  });
-
-  it('wraps patch stepping in both directions and clears held chords', () => {
-    let state = reduceInstrument(createInitialState(), { type: 'set-patch-enabled', enabled: true }).state;
+  it('wraps program stepping in both directions and clears held chords', () => {
+    let state = reduceInstrument(createInitialState(), { type: 'set-program', program: 0 }).state;
     state = reduceInstrument(state, { type: 'press', owner: 'a', degree: 1 }).state;
-    const previous = reduceInstrument(state, { type: 'step-patch', direction: -1 });
-    expect(previous.state.patch.index).toBe(127);
+    const previous = reduceInstrument(state, { type: 'step-program', direction: -1 });
+    expect(previous.state.program).toBe(127);
     expect(previous.state.active).toEqual({});
     expect(previous.effects).toEqual([{ type: 'panic' }, { type: 'program-change', program: 127 }]);
-    const next = reduceInstrument(previous.state, { type: 'step-patch', direction: 1 });
-    expect(next.state.patch.index).toBe(0);
+    const next = reduceInstrument(previous.state, { type: 'step-program', direction: 1 });
+    expect(next.state.program).toBe(0);
   });
 
-  it('selects a GM patch directly and sends its program after panic', () => {
-    let state = reduceInstrument(createInitialState(), { type: 'set-patch-enabled', enabled: true }).state;
+  it('selects a program directly and sends it after panic', () => {
+    let state = createInitialState();
     state = reduceInstrument(state, { type: 'press', owner: 'a', degree: 1 }).state;
-    const result = reduceInstrument(state, { type: 'select-patch', index: 40 });
-    expect(result.state.patch.index).toBe(40);
+    const result = reduceInstrument(state, { type: 'set-program', program: 40 });
+    expect(result.state.program).toBe(40);
     expect(result.state.active).toEqual({});
     expect(result.effects).toEqual([{ type: 'panic' }, { type: 'program-change', program: 40 }]);
+  });
+
+  it('resends the selected program after a MIDI destination change', () => {
+    const state = reduceInstrument(createInitialState(), { type: 'set-program', program: 40 }).state;
+    const result = reduceInstrument(state, { type: 'resend-program' });
+    expect(result.effects).toEqual([{ type: 'program-change', program: 40 }]);
   });
 });

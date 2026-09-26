@@ -23,9 +23,9 @@ const store = new InstrumentStore({
 // Releasing held notes before the destination changes prevents stuck voices,
 // whether we swap MIDI devices or switch between the built-in voice and MIDI.
 output.onWillChange(() => store.dispatch({ type: 'panic' }));
-output.onDidChange(() => store.dispatch({ type: 'resend-patch' }));
+output.onDidChange(() => store.dispatch({ type: 'resend-program' }));
 midi.onDestinationWillChange(() => store.dispatch({ type: 'panic' }));
-midi.onDestinationDidChange(() => store.dispatch({ type: 'resend-patch' }));
+midi.onDestinationDidChange(() => store.dispatch({ type: 'resend-program' }));
 
 new App(root, store, midi, output, synth);
 new KeyboardInput(window as unknown as KeyboardEventTarget, (action) => store.dispatch(action)).attach();

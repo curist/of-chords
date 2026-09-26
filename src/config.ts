@@ -16,7 +16,7 @@ export const CHORD_BINDINGS: readonly ChordBinding[] = [
   { code: 'KeyJ', key: 'J', degree: 7 },
 ];
 
-export const PATCH_STEP_BINDINGS = new Map<string, -1 | 1>([
+export const PROGRAM_STEP_BINDINGS = new Map<string, -1 | 1>([
   ['BracketLeft', -1],
   ['BracketRight', 1],
 ]);

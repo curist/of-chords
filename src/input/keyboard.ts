@@ -1,4 +1,4 @@
-import { CHORD_BINDINGS, PATCH_STEP_BINDINGS } from '../config';
+import { CHORD_BINDINGS, PROGRAM_STEP_BINDINGS } from '../config';
 import type { InstrumentAction } from '../state/instrument';
 
 export interface KeyboardEventLike {
@@ -23,10 +23,10 @@ export class KeyboardInput {
   attach(): () => void {
     const keydown = (event: KeyboardEventLike) => {
       if (event.repeat) return;
-      const patchDirection = PATCH_STEP_BINDINGS.get(event.code);
-      if (patchDirection) {
+      const programDirection = PROGRAM_STEP_BINDINGS.get(event.code);
+      if (programDirection) {
         event.preventDefault();
-        this.dispatch({ type: 'step-patch', direction: patchDirection });
+        this.dispatch({ type: 'step-program', direction: programDirection });
         return;
       }
       const degree = this.#degrees.get(event.code);

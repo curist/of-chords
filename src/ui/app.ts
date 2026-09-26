@@ -6,7 +6,6 @@ import { noteNames, TONIC_OPTIONS } from '../music/notes';
 import { MODE_OPTIONS, type Mode } from '../music/scales';
 import { voiceChord } from '../music/voicing';
 import type { WebMidiOutputManager, MidiOutputSnapshot } from '../midi/midi-output';
-import { GENERAL_MIDI_PATCHES } from '../midi/patches';
 import type { OutputController, OutputMode, OutputSnapshot } from '../output/output-controller';
 import type { InstrumentAction, InstrumentState } from '../state/instrument';
 import type { InstrumentStore } from '../state/store';
@@ -27,12 +26,12 @@ export function commitModeSelection(
   select.blur();
 }
 
-export function commitPatchSelection(
-  select: HTMLSelectElement,
+export function commitProgramSelection(
+  input: HTMLInputElement,
   dispatch: (action: InstrumentAction) => void,
 ): void {
-  dispatch({ type: 'select-patch', index: Number(select.value) });
-  select.blur();
+  if (input.value.trim()) dispatch({ type: 'set-program', program: Number(input.value) - 1 });
+  input.blur();
 }
 
 export function isOutputPanelVisible(panel: OutputMode, mode: OutputMode): boolean {
@@ -123,14 +122,11 @@ export class App {
 
           <div class="output-midi" data-output-panel="midi">
             <label>MIDI Output<select id="midi-output"><option value="">No output selected</option></select></label>
-            <div class="patch-controls">
-              <label>Patch control<select id="patch-profile"><option value="off">Off · destination controlled</option><option value="gm">General MIDI</option></select></label>
-              <button id="previous-patch" aria-label="Previous General MIDI patch"><span>←</span><kbd>[</kbd></button>
-              <div class="patch-readout">
-                <select id="patch-select" aria-label="General MIDI program">${GENERAL_MIDI_PATCHES.map((patch) => `<option value="${patch.program}">${patch.program + 1} · ${patch.name}</option>`).join('')}</select>
-                <small id="patch-number"></small><small class="patch-caveat">GM names require a GM-compatible destination.</small>
-              </div>
-              <button id="next-patch" aria-label="Next General MIDI patch"><span>→</span><kbd>]</kbd></button>
+            <div class="program-controls">
+              <button id="previous-program" aria-label="Previous MIDI program"><span>←</span><kbd>[</kbd></button>
+              <label>Program<input id="program-input" type="number" min="1" max="128" placeholder="—" aria-describedby="program-number"></label>
+              <small id="program-number">No program selected.</small>
+              <button id="next-program" aria-label="Next MIDI program"><span>→</span><kbd>]</kbd></button>
             </div>
           </div>
         </section>
@@ -202,15 +198,10 @@ export class App {
     });
     this.root.querySelector('#panic')?.addEventListener('click', () => this.store.dispatch({ type: 'panic' }));
     if (SHOW_VOICE_TUNING) this.#bindDevPanel();
-    this.root.querySelector<HTMLSelectElement>('#patch-profile')?.addEventListener('change', (event) => {
-      const select = event.target as HTMLSelectElement;
-      this.store.dispatch({ type: 'set-patch-enabled', enabled: select.value === 'gm' });
-      select.blur();
-    });
-    this.root.querySelector('#previous-patch')?.addEventListener('click', () => this.store.dispatch({ type: 'step-patch', direction: -1 }));
-    this.root.querySelector('#next-patch')?.addEventListener('click', () => this.store.dispatch({ type: 'step-patch', direction: 1 }));
-    this.root.querySelector<HTMLSelectElement>('#patch-select')?.addEventListener('change', (event) => {
-      commitPatchSelection(event.target as HTMLSelectElement, (action) => this.store.dispatch(action));
+    this.root.querySelector('#previous-program')?.addEventListener('click', () => this.store.dispatch({ type: 'step-program', direction: -1 }));
+    this.root.querySelector('#next-program')?.addEventListener('click', () => this.store.dispatch({ type: 'step-program', direction: 1 }));
+    this.root.querySelector<HTMLInputElement>('#program-input')?.addEventListener('change', (event) => {
+      commitProgramSelection(event.target as HTMLInputElement, (action) => this.store.dispatch(action));
     });
   }
 
@@ -246,14 +237,9 @@ export class App {
     historyNames.textContent = state.history.length ? state.history.map((chord) => chord.name).join(' → ') : 'No chords yet';
     this.root.querySelector<HTMLElement>('#history-romans')!.textContent = state.history.map((chord) => chord.roman).join(' → ');
 
-    const patch = GENERAL_MIDI_PATCHES[state.patch.index];
-    const patchProfile = this.root.querySelector<HTMLSelectElement>('#patch-profile')!;
-    patchProfile.value = state.patch.enabled ? 'gm' : 'off';
-    const patchSelect = this.root.querySelector<HTMLSelectElement>('#patch-select')!;
-    patchSelect.value = String(patch.program);
-    patchSelect.disabled = !state.patch.enabled;
-    this.root.querySelector<HTMLElement>('#patch-number')!.textContent = state.patch.enabled ? `Program ${patch.program + 1} · MIDI ${patch.program}` : 'Destination controls the current patch.';
-    this.root.querySelectorAll<HTMLButtonElement>('#previous-patch, #next-patch').forEach((button) => { button.disabled = !state.patch.enabled; });
+    const programInput = this.root.querySelector<HTMLInputElement>('#program-input')!;
+    programInput.value = state.program === null ? '' : String(state.program + 1);
+    this.root.querySelector<HTMLElement>('#program-number')!.textContent = state.program === null ? 'No program selected.' : `MIDI ${state.program}`;
   }
 
   #renderMidi(snapshot: MidiOutputSnapshot): void {

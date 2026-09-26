@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { commitModeSelection, commitPatchSelection, commitTonicSelection, isOutputPanelVisible } from './app';
+import { commitModeSelection, commitProgramSelection, commitTonicSelection, isOutputPanelVisible } from './app';
 import type { InstrumentAction } from '../state/instrument';
 
 describe('tonic selection', () => {
@@ -28,15 +28,15 @@ describe('mode selection', () => {
   });
 });
 
-describe('patch selection', () => {
-  it('dispatches the selected program index and returns focus to the instrument', () => {
+describe('program selection', () => {
+  it('translates the displayed 1-based program and returns focus to the instrument', () => {
     const blur = vi.fn();
-    const select = { value: '40', blur } as unknown as HTMLSelectElement;
+    const input = { value: '41', blur } as unknown as HTMLInputElement;
     const actions: InstrumentAction[] = [];
 
-    commitPatchSelection(select, (action) => actions.push(action));
+    commitProgramSelection(input, (action) => actions.push(action));
 
-    expect(actions).toEqual([{ type: 'select-patch', index: 40 }]);
+    expect(actions).toEqual([{ type: 'set-program', program: 40 }]);
     expect(blur).toHaveBeenCalledOnce();
   });
 });

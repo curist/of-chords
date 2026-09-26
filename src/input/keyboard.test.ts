@@ -34,8 +34,8 @@ describe('KeyboardInput', () => {
     expect(actions).toEqual([
       { type: 'press', owner: 'keyboard:KeyA', degree: 1 },
       { type: 'release', owner: 'keyboard:KeyA' },
-      { type: 'step-patch', direction: -1 },
-      { type: 'step-patch', direction: 1 },
+      { type: 'step-program', direction: -1 },
+      { type: 'step-program', direction: 1 },
     ]);
   });
 });
