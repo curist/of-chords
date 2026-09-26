@@ -41,10 +41,7 @@ export class App {
     this.root.innerHTML = `
       <main class="instrument">
         <header class="hero">
-          <div>
-            <p class="eyebrow">Browser harmony instrument</p>
-            <h1>WebChords</h1>
-          </div>
+          <p class="eyebrow">WebChords · Browser harmony instrument</p>
           <div class="status-pill" id="midi-status-pill"><span></span><b>Waiting for MIDI</b></div>
         </header>
 
