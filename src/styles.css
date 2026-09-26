@@ -45,12 +45,9 @@ kbd { display: inline-grid; place-items: center; min-width: 28px; min-height: 27
 .output-panel { display: grid; gap: 18px; padding: 20px; }
 .output-head { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 22px; }
 .output-head p:last-child { margin: 5px 0 0; color: #918b7d; font-size: 13px; }
-.output-builtin, .output-midi { display: grid; gap: 14px; padding-top: 16px; border-top: 1px solid #39362e; }
-.output-midi { grid-template-columns: 1fr; }
+.output-midi { display: grid; grid-template-columns: 1fr; gap: 14px; padding-top: 16px; border-top: 1px solid #39362e; }
 [data-output-panel][hidden] { display: none; }
 .output-midi select#midi-output { min-width: 250px; }
-.voice-name { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
-.voice-hint { margin: 0; color: #918b7d; font-size: 13px; }
 .panic { padding: 13px 18px; border: 1px solid #ba564b; border-radius: 10px; background: #4c211e; cursor: pointer; font-weight: 700; }
 .panic:hover { background: #c15d50; }
 .patch-controls { grid-column: 1 / -1; display: grid; grid-template-columns: auto 42px minmax(220px, 1fr) 42px; align-items: end; gap: 8px; padding-top: 16px; border-top: 1px solid #39362e; }

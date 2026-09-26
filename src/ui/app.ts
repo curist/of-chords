@@ -35,7 +35,9 @@ export function commitPatchSelection(
   select.blur();
 }
 
-const SHOW_DEV_PANEL = import.meta.env.DEV;
+// The voice-tuning panel is hidden by default. To iterate on the built-in
+// voice, run with `VITE_VOICE_TUNING=true npm run dev` (or flip this to `true`).
+const SHOW_VOICE_TUNING = import.meta.env.VITE_VOICE_TUNING === 'true';
 
 export class App {
   readonly #pointerOwners = new Map<number, string>();
@@ -115,11 +117,6 @@ export class App {
             <button id="panic" class="panic">Panic · All Notes Off</button>
           </div>
 
-          <div class="output-builtin" data-output-panel="builtin">
-            <p class="voice-name">WebChords Voice</p>
-            <p class="voice-hint">A warm built-in polyphonic voice — no MIDI device needed.</p>
-          </div>
-
           <div class="output-midi" data-output-panel="midi">
             <label>MIDI Output<select id="midi-output"><option value="">No output selected</option></select></label>
             <div class="patch-controls">
@@ -133,7 +130,7 @@ export class App {
             </div>
           </div>
         </section>
-        ${SHOW_DEV_PANEL ? this.#renderDevPanelMarkup() : ''}
+        ${SHOW_VOICE_TUNING ? this.#renderDevPanelMarkup() : ''}
       </main>`;
   }
 
@@ -151,7 +148,7 @@ export class App {
     return `
       <section class="panel voice-panel" aria-labelledby="voice-heading">
         <div class="voice-panel-head">
-          <div><p class="section-label">Development</p><h2 id="voice-heading">Voice tuning</h2><p>Shapes newly played notes. Dev build only.</p></div>
+          <div><p class="section-label">Development</p><h2 id="voice-heading">Voice tuning</h2><p>Shapes newly played notes.</p></div>
           <button id="voice-reset" class="voice-reset">Reset defaults</button>
         </div>
         <div class="voice-grid">${controls}</div>
@@ -200,7 +197,7 @@ export class App {
       this.midi.selectOutput((event.target as HTMLSelectElement).value || null);
     });
     this.root.querySelector('#panic')?.addEventListener('click', () => this.store.dispatch({ type: 'panic' }));
-    if (SHOW_DEV_PANEL) this.#bindDevPanel();
+    if (SHOW_VOICE_TUNING) this.#bindDevPanel();
     this.root.querySelector<HTMLSelectElement>('#patch-profile')?.addEventListener('change', (event) => {
       const select = event.target as HTMLSelectElement;
       this.store.dispatch({ type: 'set-patch-enabled', enabled: select.value === 'gm' });
@@ -277,7 +274,7 @@ export class App {
     this.root.querySelectorAll<HTMLElement>('[data-output-panel]').forEach((panel) => {
       panel.hidden = panel.dataset.outputPanel !== snapshot.mode;
     });
-    if (SHOW_DEV_PANEL) {
+    if (SHOW_VOICE_TUNING) {
       const voicePanel = this.root.querySelector<HTMLElement>('.voice-panel');
       if (voicePanel) voicePanel.hidden = snapshot.mode !== 'builtin';
     }
