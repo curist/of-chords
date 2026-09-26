@@ -8,7 +8,7 @@ describe('major-key harmony', () => {
     ['C I', { tonic: 0, mode: 'major', degree: 1, shape: 'triad', inversion: 0 }, ['C', 'E', 'G'], [48, 52, 55]],
     ['C ii', { tonic: 0, mode: 'major', degree: 2, shape: 'triad', inversion: 0 }, ['D', 'F', 'A'], [50, 53, 57]],
     ['C V7', { tonic: 0, mode: 'major', degree: 5, shape: 'seventh', inversion: 0 }, ['G', 'B', 'D', 'F'], [55, 59, 62, 65]],
-    ['G V', { tonic: 7, mode: 'major', degree: 5, shape: 'triad', inversion: 0 }, ['D', 'F#', 'A'], [50, 54, 57]],
+    ['G V', { tonic: 7, mode: 'major', degree: 5, shape: 'triad', inversion: 0 }, ['D', 'F#', 'A'], [62, 66, 69]],
     ['C vii diminished', { tonic: 0, mode: 'major', degree: 7, shape: 'triad', inversion: 0 }, ['B', 'D', 'F'], [59, 62, 65]],
   ] as const)('%s resolves semantic tones and MIDI notes', (_label, intent, names, midi) => {
     const chord = resolveChord(intent);
@@ -38,6 +38,20 @@ describe('major-key harmony', () => {
       inversion: 0 as const,
     }).root);
     expect(roots).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  });
+
+  it('keeps transposed scale-degree roots ascending through the register', () => {
+    const roots = Array.from({ length: 7 }, (_, index) => {
+      const chord = resolveChord({
+        tonic: 7,
+        mode: 'major',
+        degree: (index + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7,
+        shape: 'triad',
+        inversion: 0,
+      });
+      return voiceChord(chord, 3)[0];
+    });
+    expect(roots).toEqual([55, 57, 59, 60, 62, 64, 66]);
   });
 });
 

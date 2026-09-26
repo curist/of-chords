@@ -13,6 +13,7 @@ export interface ChordIntent {
 
 export interface AbstractChord extends ChordIntent {
   readonly root: PitchClass;
+  readonly rootPosition: number;
   readonly pitchClasses: readonly PitchClass[];
   readonly intervals: readonly number[];
   readonly quality: ChordQuality;
@@ -56,6 +57,7 @@ export function resolveChord(intent: ChordIntent): AbstractChord {
   return {
     ...intent,
     root,
+    rootPosition: rootTone,
     intervals,
     pitchClasses: tones.map(normalizePitchClass),
     quality,
