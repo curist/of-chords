@@ -52,8 +52,6 @@ kbd { display: inline-grid; place-items: center; min-width: 28px; min-height: 27
 .panic:hover { background: #c15d50; }
 .program-controls { display: grid; grid-template-columns: 42px auto 42px; align-items: end; gap: 8px; }
 .program-controls label { margin: 0; }
-.program-controls label > span { display: flex; align-items: baseline; gap: 7px; }
-.program-controls label small { color: #918b7d; font: 400 10px ui-monospace, monospace; letter-spacing: 0; text-transform: none; }
 .program-controls input { width: 110px; padding: 10px 12px; border: 1px solid #464238; border-radius: 9px; color: #f4f1e8; background: #151512; font: inherit; }
 .program-controls button { height: 48px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid #454138; border-radius: 9px; background: #25231e; cursor: pointer; white-space: nowrap; }
 .program-controls button span { line-height: 1; }
