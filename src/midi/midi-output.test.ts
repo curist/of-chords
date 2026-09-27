@@ -24,6 +24,52 @@ function fakeNavigator(access: ReturnType<typeof fakeAccess>) {
 }
 
 describe('WebMidiOutputManager failure boundaries', () => {
+  it('restores MIDI automatically when permission was already granted', async () => {
+    const access = fakeAccess([]);
+    let requests = 0;
+    const manager = new WebMidiOutputManager({
+      permissions: { query: async () => ({ state: 'granted' as const }) },
+      requestMIDIAccess: async () => { requests += 1; return access; },
+    }, null);
+
+    await (manager as unknown as { restoreIfPermitted?: () => Promise<void> }).restoreIfPermitted?.();
+
+    expect(requests).toBe(1);
+    expect(manager.snapshot().status).toBe('ready');
+  });
+
+  it('waits for a tap when MIDI permission still needs a prompt', async () => {
+    let requests = 0;
+    const manager = new WebMidiOutputManager({
+      permissions: { query: async () => ({ state: 'prompt' as const }) },
+      requestMIDIAccess: async () => { requests += 1; return fakeAccess([]); },
+    }, null);
+
+    await (manager as unknown as { restoreIfPermitted?: () => Promise<void> }).restoreIfPermitted?.();
+
+    expect(requests).toBe(0);
+    expect(manager.snapshot()).toMatchObject({
+      status: 'idle',
+      message: 'Tap MIDI to connect.',
+    });
+  });
+
+  it('does not overwrite a connection made while permission status is loading', async () => {
+    let finishQuery!: (status: { state: 'prompt' }) => void;
+    const query = new Promise<{ state: 'prompt' }>((resolve) => { finishQuery = resolve; });
+    const manager = new WebMidiOutputManager({
+      permissions: { query: async () => query },
+      requestMIDIAccess: async () => fakeAccess([]),
+    }, null);
+
+    const restoring = (manager as unknown as { restoreIfPermitted: () => Promise<void> }).restoreIfPermitted();
+    await manager.initialize();
+    finishQuery({ state: 'prompt' });
+    await restoring;
+
+    expect(manager.snapshot().status).toBe('ready');
+  });
+
   it('reports modern permission rejection as denied', async () => {
     const manager = new WebMidiOutputManager({
       requestMIDIAccess: async () => { throw new DOMException('not allowed', 'NotAllowedError'); },

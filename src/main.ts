@@ -29,6 +29,7 @@ midi.onDestinationWillChange(() => store.dispatch({ type: 'panic' }));
 midi.onDestinationDidChange(() => store.dispatch({ type: 'resend-program' }));
 
 const app = new App(root, store, midi, output, synth);
+if (output.mode === 'midi') void midi.restoreIfPermitted();
 new KeyboardInput(window as unknown as KeyboardEventTarget, (action) => store.dispatch(action)).attach();
 new GamepadInput(
   window as unknown as GamepadEventTarget,

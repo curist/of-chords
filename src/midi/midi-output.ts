@@ -19,6 +19,9 @@ interface MidiAccessLike {
 
 interface MidiNavigator {
   requestMIDIAccess?: () => Promise<MidiAccessLike>;
+  permissions?: {
+    query(descriptor: { name: 'midi'; sysex: false }): Promise<{ state: 'granted' | 'denied' | 'prompt' }>;
+  };
 }
 
 interface StorageLike {
@@ -99,6 +102,23 @@ export class WebMidiOutputManager implements NoteSink {
 
   onDestinationDidChange(listener: () => void): void {
     this.#destinationDidChange = listener;
+  }
+
+  async restoreIfPermitted(): Promise<void> {
+    if (!this.browserNavigator.requestMIDIAccess) {
+      await this.initialize();
+      return;
+    }
+    try {
+      const permission = await this.browserNavigator.permissions?.query({ name: 'midi', sysex: false });
+      if (permission?.state === 'granted') {
+        await this.initialize();
+        return;
+      }
+    } catch {
+      // Permission queries are not consistently supported across browsers.
+    }
+    if (this.#status === 'idle') this.#setStatus('idle', 'Tap MIDI to connect.');
   }
 
   async initialize(): Promise<void> {
