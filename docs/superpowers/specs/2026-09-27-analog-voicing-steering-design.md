@@ -134,7 +134,9 @@ Lifecycle rules:
    that could briefly apply displaced intent to a fallback chord. A subsequent
    poll may promote the next-lowest connected gamepad and apply its intent.
    Disconnecting a non-authoritative controller atomically removes only that
-   controller's owners and does not change current intent.
+   controller's owners and does not change current intent. If one of those
+   owners was focused, focus falls back within the same transaction and the
+   unchanged authoritative intent is applied immediately to the fallback owner.
 8. Panic, window blur, and page hiding continue to release all owners.
 
 The baseline never changes after a chord is pressed. Repeated transformations,
@@ -214,6 +216,17 @@ turning a directional preference on. Candidate discreteness means the audible
 result changes at boundaries, but increasing axis magnitude must select
 non-decreasing realized magnitude, subject to range constraints and hysteresis.
 
+The selector enforces that property rather than relying on score weights. For
+each axis independently, movement is *outward* when the new input keeps the
+same non-zero sign and its absolute magnitude is greater than the previous
+input. During outward movement, candidates whose realized magnitude on that
+axis is smaller than the currently selected candidate are ineligible. A
+direction change or inward movement removes that constraint, allowing the
+voicing to come back naturally. Hysteresis is evaluated only among eligible
+candidates and cannot retain an ineligible candidate. Neutral input still
+bypasses all selection and restores the baseline. This state and the previous
+normalized input are reset with the owner's other hysteresis state.
+
 Neutral input bypasses optimization and returns the exact baseline. This is a
 hard invariant, not merely a large scoring weight.
 
@@ -239,6 +252,16 @@ The ledger updates its complete ownership/reference state as one synchronous
 operation. It starts genuinely new notes before stopping genuinely removed
 notes, avoiding a momentary silent hole during a voicing change. As today,
 output exceptions do not leave ledger ownership internally inconsistent.
+
+For controller reset and other transitions that change several owners at once,
+the ledger also exposes bulk reconciliation. Its input is the complete desired
+owner-to-note map after the reducer transaction. It diffs that map against the
+complete current map, computes reference-count changes globally, installs the
+new ownership and count state synchronously, emits every global zero-to-one
+Note On, and only then emits every global one-to-zero Note Off. Notes whose
+global count remains non-zero emit neither event, even if ownership moves
+between owners. The reducer represents an atomic multi-owner transition as one
+bulk-reconcile effect rather than a list of per-owner replacements and releases.
 
 This produces ordinary Note On and Note Off events. The built-in synth uses its
 existing short attack and release envelopes; external MIDI receives the same
@@ -310,6 +333,8 @@ Pure unit tests cover:
 - Higher/lower center-of-gravity preference from Y input.
 - Upward/downward opening preference from X input.
 - Non-decreasing realized transformation strength as stick magnitude increases.
+- Outward-motion eligibility, inward release of that constraint, direction
+  changes, and hysteresis never retaining an ineligible candidate.
 - Combined diagonal intent.
 - Stable candidate selection within the hysteresis margin.
 - Focus assignment, last-pressed-held fallback, and non-focused release.
@@ -317,6 +342,9 @@ Pure unit tests cover:
 - Live replacement and exact restoration on return to center.
 - Atomic controller reset and baseline restoration on disconnect, with no
   transient fallback revoice or intermediate note-event burst.
+- Bulk ledger reconciliation for simultaneous restore and removal, including
+  notes shared by surviving and disconnected owners, global Note On-before-Off
+  ordering, and no event when a global reference count stays non-zero.
 - Complete correlated-state cleanup on panic, blur, page hiding, and output or
   program changes that clear active notes.
 - Atomic ledger replacement, shared-note retention, reference counts, Note On
