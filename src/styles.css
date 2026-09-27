@@ -21,8 +21,9 @@ select { min-width: 92px; padding: 10px 34px 10px 12px; border: 1px solid #46423
 .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 14px; }
 .section-heading > p { margin: 0; color: #918b7d; font-size: 13px; }
 kbd { display: inline-grid; place-items: center; min-width: 28px; min-height: 27px; padding: 3px 7px; border: 1px solid #595448; border-bottom-width: 3px; border-radius: 6px; background: #25231e; font: 500 12px ui-monospace, monospace; }
+.play-section { -webkit-user-select: none; user-select: none; }
 .chord-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 9px; margin-bottom: 26px; }
-.chord-pad { position: relative; min-height: 178px; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 7px; padding: 16px; overflow: hidden; border: 1px solid #403c33; border-radius: 15px; background: linear-gradient(145deg, #26241e, #191815); text-align: left; cursor: pointer; touch-action: none; -webkit-user-select: none; user-select: none; transition: transform .08s, border-color .15s, background .15s; }
+.chord-pad { position: relative; min-height: 178px; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 7px; padding: 16px; overflow: hidden; border: 1px solid #403c33; border-radius: 15px; background: linear-gradient(145deg, #26241e, #191815); text-align: left; cursor: pointer; touch-action: none; transition: transform .08s, border-color .15s, background .15s; }
 .chord-pad:hover { border-color: #81775f; transform: translateY(-2px); }
 .chord-pad.active { border-color: #f0c45d; background: linear-gradient(145deg, #f1c865, #bb8527); color: #17130b; transform: translateY(2px); box-shadow: 0 0 30px rgba(230,184,75,.2); }
 .chord-pad .roman { position: absolute; top: 14px; left: 16px; font: 500 13px ui-monospace, monospace; }

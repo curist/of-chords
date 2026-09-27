@@ -113,7 +113,7 @@ export class App {
           </div>
         </section>
 
-        <section aria-labelledby="chords-heading">
+        <section class="play-section" aria-labelledby="chords-heading">
           <div class="section-heading"><div><p class="section-label">Play</p><h2 id="chords-heading">Diatonic chords</h2></div><p>Hold <kbd>A</kbd> through <kbd>J</kbd></p></div>
           <div class="chord-grid" id="chord-grid">
             ${CHORD_BINDINGS.map(({ degree, key }) => `
