@@ -52,9 +52,10 @@ class FakeAudioContext {
   state: 'suspended' | 'running' = 'running';
   destination = new FakeNode();
   readonly oscillators: FakeOscillator[] = [];
+  readonly gains: FakeGain[] = [];
   readonly convolvers: FakeConvolver[] = [];
   buffers: FakeBuffer[] = [];
-  createGain(): FakeGain { return new FakeGain(); }
+  createGain(): FakeGain { const gain = new FakeGain(); this.gains.push(gain); return gain; }
   createBiquadFilter(): FakeFilter { return new FakeFilter(); }
   createDynamicsCompressor(): FakeCompressor { return new FakeCompressor(); }
   createConvolver(): FakeConvolver { const c = new FakeConvolver(); this.convolvers.push(c); return c; }
@@ -74,6 +75,14 @@ function makeSynth() {
 }
 
 describe('WebAudioSynthSink', () => {
+  it('uses the bright square default voice at the requested output level', () => {
+    const { ctx, synth } = makeSynth();
+    synth.noteOn(60);
+
+    expect(ctx.oscillators[0].type).toBe('square');
+    expect(ctx.gains[0].gain.value).toBe(0.8);
+  });
+
   it('starts two oscillators per note and tracks the voice', () => {
     const { ctx, synth } = makeSynth();
     synth.noteOn(60);
