@@ -60,6 +60,7 @@ kbd { display: inline-grid; place-items: center; min-width: 28px; min-height: 27
 .program-controls button kbd { min-width: 20px; min-height: 20px; padding: 1px 4px; font-size: 9px; }
 .status-pill { display: flex; align-items: center; gap: 9px; padding: 9px 13px; border: 1px solid #3f3b32; border-radius: 999px; color: #aaa394; font-size: 12px; }
 .status-pill span { width: 8px; height: 8px; border-radius: 50%; background: #706a5f; }
+.status-pill[data-status="ready"] span { background: #83c36c; box-shadow: 0 0 9px #83c36c; }
 .controller-toast { position: fixed; z-index: 10; top: 18px; left: 50%; display: flex; align-items: center; gap: 9px; padding: 11px 16px; border: 1px solid #514b3d; border-radius: 999px; background: #25231e; box-shadow: 0 12px 32px rgba(0,0,0,.35); color: #f4f1e8; font-size: 13px; transform: translateX(-50%); }
 .controller-toast[hidden] { display: none; }
 .controller-toast span { width: 8px; height: 8px; border-radius: 50%; background: #e6b84b; box-shadow: 0 0 9px #e6b84b; }
