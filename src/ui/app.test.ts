@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { commitModeSelection, commitProgramSelection, commitTonicSelection, commitVoiceSelection, isGamepadStatusVisible, isOutputPanelVisible } from './app';
+import { commitModeSelection, commitProgramSelection, commitTonicSelection, commitVoiceSelection, GamepadNotification, isOutputPanelVisible } from './app';
 import type { InstrumentAction } from '../state/instrument';
 
 describe('tonic selection', () => {
@@ -49,10 +49,46 @@ describe('output-specific controls', () => {
 });
 
 describe('gamepad status', () => {
-  it('stays hidden until a controller is detected', () => {
-    expect(isGamepadStatusVisible('hidden')).toBe(false);
-    expect(isGamepadStatusVisible('activating')).toBe(true);
-    expect(isGamepadStatusVisible('ready')).toBe(true);
+  it('shows activation, then dismisses the ready notification after two seconds', () => {
+    const label = { textContent: '' };
+    const target = {
+      dataset: {},
+      hidden: true,
+      querySelector: () => label,
+    } as unknown as HTMLElement;
+    let dismiss: (() => void) | null = null;
+    const notification = new GamepadNotification(
+      target,
+      (callback, delay) => { expect(delay).toBe(2000); dismiss = callback; return 1; },
+      () => {},
+    );
+
+    notification.update('activating');
+    expect(target.hidden).toBe(false);
+    expect(label.textContent).toBe('Release controller buttons');
+
+    notification.update('ready');
+    expect(target.hidden).toBe(false);
+    expect(label.textContent).toBe('Controller ready');
+    expect(dismiss).not.toBeNull();
+    (dismiss as unknown as () => void)();
+    expect(target.hidden).toBe(true);
+  });
+
+  it('cancels a pending dismissal when the controller disconnects', () => {
+    const target = {
+      dataset: {},
+      hidden: true,
+      querySelector: () => ({ textContent: '' }),
+    } as unknown as HTMLElement;
+    const cleared: number[] = [];
+    const notification = new GamepadNotification(target, () => 7, (id) => cleared.push(id));
+
+    notification.update('ready');
+    notification.update('hidden');
+
+    expect(cleared).toEqual([7]);
+    expect(target.hidden).toBe(true);
   });
 });
 

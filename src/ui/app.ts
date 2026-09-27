@@ -47,8 +47,33 @@ export function isOutputPanelVisible(panel: OutputMode, mode: OutputMode): boole
   return panel === mode;
 }
 
-export function isGamepadStatusVisible(status: GamepadInputStatus): boolean {
-  return status !== 'hidden';
+type ScheduleDismiss = (callback: () => void, delay: number) => number;
+type CancelDismiss = (id: number) => void;
+
+export class GamepadNotification {
+  #dismissId: number | null = null;
+
+  constructor(
+    private readonly target: HTMLElement,
+    private readonly scheduleDismiss: ScheduleDismiss = (callback, delay) => window.setTimeout(callback, delay),
+    private readonly cancelDismiss: CancelDismiss = (id) => window.clearTimeout(id),
+  ) {}
+
+  update(status: GamepadInputStatus): void {
+    if (this.#dismissId !== null) {
+      this.cancelDismiss(this.#dismissId);
+      this.#dismissId = null;
+    }
+    this.target.dataset.status = status;
+    this.target.hidden = status === 'hidden';
+    this.target.querySelector('b')!.textContent = describeGamepadStatus(status);
+    if (status === 'ready') {
+      this.#dismissId = this.scheduleDismiss(() => {
+        this.target.hidden = true;
+        this.#dismissId = null;
+      }, 2000);
+    }
+  }
 }
 
 // The voice-tuning panel is for iterating on the built-in voice, so it only
@@ -57,6 +82,7 @@ const SHOW_VOICE_TUNING = import.meta.env.DEV;
 
 export class App {
   readonly #pointerOwners = new Map<number, string>();
+  readonly #gamepadNotification: GamepadNotification;
   #latestMidi: MidiOutputSnapshot | null = null;
   #mode: OutputMode = 'builtin';
 
@@ -68,6 +94,9 @@ export class App {
     private readonly synth: WebAudioSynthSink,
   ) {
     this.#renderShell();
+    this.#gamepadNotification = new GamepadNotification(
+      this.root.querySelector<HTMLElement>('#gamepad-notification')!,
+    );
     this.#bindControls();
     this.store.subscribe((state) => this.#renderInstrument(state));
     this.midi.subscribe((snapshot) => this.#renderMidi(snapshot));
@@ -75,11 +104,7 @@ export class App {
   }
 
   setGamepadStatus(status: GamepadInputStatus): void {
-    const pill = this.root.querySelector<HTMLElement>('#gamepad-status-pill');
-    if (!pill) return;
-    pill.dataset.status = status;
-    pill.hidden = !isGamepadStatusVisible(status);
-    pill.querySelector('b')!.textContent = describeGamepadStatus(status);
+    this.#gamepadNotification.update(status);
   }
 
   #renderShell(): void {
@@ -88,10 +113,10 @@ export class App {
         <header class="hero">
           <p class="eyebrow">Of Chords</p>
           <div class="header-statuses">
-            <div class="status-pill" id="gamepad-status-pill" data-status="hidden" hidden><span></span><b></b></div>
             <div class="status-pill" id="output-status-pill"><span></span><b>Built-in voice</b></div>
           </div>
         </header>
+        <div class="controller-toast" id="gamepad-notification" data-status="hidden" role="status" aria-live="polite" hidden><span></span><b></b></div>
 
         <section class="panel setup" aria-labelledby="harmony-heading">
           <div>
