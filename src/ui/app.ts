@@ -1,6 +1,7 @@
 import type { WebAudioSynthSink } from '../audio/synth';
 import { DEFAULT_VOICE, VOICE_PARAM_RANGES, WAVEFORMS, type VoiceParams } from '../audio/voice-params';
 import { CHORD_BINDINGS } from '../config';
+import { describeGamepadStatus, type GamepadInputStatus } from '../input/gamepad';
 import { resolveChord } from '../music/harmony';
 import { noteNames, TONIC_OPTIONS } from '../music/notes';
 import { MODE_OPTIONS, type Mode } from '../music/scales';
@@ -69,12 +70,22 @@ export class App {
     this.output.subscribe((snapshot) => this.#renderOutput(snapshot));
   }
 
+  setGamepadStatus(status: GamepadInputStatus): void {
+    const pill = this.root.querySelector<HTMLElement>('#gamepad-status-pill');
+    if (!pill) return;
+    pill.dataset.status = status;
+    pill.querySelector('b')!.textContent = describeGamepadStatus(status);
+  }
+
   #renderShell(): void {
     this.root.innerHTML = `
       <main class="instrument">
         <header class="hero">
           <p class="eyebrow">WebChords · Browser harmony instrument</p>
-          <div class="status-pill" id="output-status-pill"><span></span><b>Built-in voice</b></div>
+          <div class="header-statuses">
+            <div class="status-pill" id="gamepad-status-pill" data-status="waiting"><span></span><b>Press A to connect controller</b></div>
+            <div class="status-pill" id="output-status-pill"><span></span><b>Built-in voice</b></div>
+          </div>
         </header>
 
         <section class="panel setup" aria-labelledby="harmony-heading">

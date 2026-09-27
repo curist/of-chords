@@ -1,5 +1,6 @@
 import './styles.css';
 import { WebAudioSynthSink } from './audio/synth';
+import { GamepadInput, type FrameScheduler, type GamepadEventTarget, type GamepadNavigator } from './input/gamepad';
 import { KeyboardInput, type KeyboardEventTarget } from './input/keyboard';
 import { NoteLedger } from './midi/note-ledger';
 import { WebMidiOutputManager } from './midi/midi-output';
@@ -27,8 +28,18 @@ output.onDidChange(() => store.dispatch({ type: 'resend-program' }));
 midi.onDestinationWillChange(() => store.dispatch({ type: 'panic' }));
 midi.onDestinationDidChange(() => store.dispatch({ type: 'resend-program' }));
 
-new App(root, store, midi, output, synth);
+const app = new App(root, store, midi, output, synth);
 new KeyboardInput(window as unknown as KeyboardEventTarget, (action) => store.dispatch(action)).attach();
+new GamepadInput(
+  window as unknown as GamepadEventTarget,
+  navigator as unknown as GamepadNavigator,
+  {
+    request: (callback) => requestAnimationFrame(callback),
+    cancel: (id) => cancelAnimationFrame(id),
+  } satisfies FrameScheduler,
+  (action) => store.dispatch(action),
+  (status) => app.setGamepadStatus(status),
+).attach();
 
 const panic = () => store.dispatch({ type: 'panic' });
 window.addEventListener('blur', panic);

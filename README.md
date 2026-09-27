@@ -16,6 +16,7 @@ Open the local URL shown by Vite. The built-in voice works immediately; optional
 ## Controls
 
 - Hold `A S D F G H J` for degrees `I ii iii IV V vi vii°`.
+- On a gamepad, press and release **A** once to activate the controller, then use `A B X Y L1 R1 L2` for degrees `I ii iii IV V vi vii°`. The activation press does not play a chord.
 - Choose any chromatic tonic and Major, Natural minor, Dorian, or Mixolydian mode.
 - Choose triad, 7th, sus2, or sus4 and root, first, or second inversion.
 - Modifier changes apply to the next chord press. Already-held chords retain their notes until released.
@@ -29,7 +30,7 @@ The app also releases tracked notes on window blur, page hide, and visibility lo
 Inputs dispatch typed actions into a pure reducer/store. The reducer resolves semantic chord intent through the harmony and voicing modules, updates inspectable state, and emits explicit MIDI effects. A note ledger applies those effects to the selected Web MIDI output while preserving shared-note ownership.
 
 ```text
-keyboard / UI → actions → reducer/store → MIDI effects → note ledger → Web MIDI output
+keyboard / gamepad / UI → actions → reducer/store → MIDI effects → note ledger → Web MIDI output
                               ↓
                          UI snapshots
 ```
