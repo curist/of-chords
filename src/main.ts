@@ -48,8 +48,6 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') panic();
 });
 
-void midi.initialize();
-
 function safeLocalStorage(): Storage | null {
   try {
     return localStorage;

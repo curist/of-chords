@@ -24,6 +24,32 @@ function fakeNavigator(access: ReturnType<typeof fakeAccess>) {
 }
 
 describe('WebMidiOutputManager failure boundaries', () => {
+  it('reports modern permission rejection as denied', async () => {
+    const manager = new WebMidiOutputManager({
+      requestMIDIAccess: async () => { throw new DOMException('not allowed', 'NotAllowedError'); },
+    }, null);
+
+    await manager.initialize();
+
+    expect(manager.snapshot()).toMatchObject({
+      status: 'denied',
+      message: 'MIDI access was denied.',
+    });
+  });
+
+  it('does not request MIDI access again once ready', async () => {
+    const access = fakeAccess([]);
+    let requests = 0;
+    const manager = new WebMidiOutputManager({
+      requestMIDIAccess: async () => { requests += 1; return access; },
+    }, null);
+
+    await manager.initialize();
+    await manager.initialize();
+
+    expect(requests).toBe(1);
+  });
+
   it('treats unavailable preference storage as optional', () => {
     expect(getOptionalStorage(() => { throw new DOMException('blocked', 'SecurityError'); })).toBeNull();
   });

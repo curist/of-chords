@@ -46,6 +46,26 @@ describe('output-specific controls', () => {
     expect(isOutputPanelVisible('midi', 'midi')).toBe(true);
     expect(isOutputPanelVisible('midi', 'builtin')).toBe(false);
   });
+
+  it('requests MIDI access when MIDI output is selected', async () => {
+    const appModule = await import('./app');
+    const activateOutputMode = (appModule as unknown as {
+      activateOutputMode?: (
+        mode: 'builtin' | 'midi',
+        midi: { initialize(): Promise<void> },
+        output: { setMode(mode: 'builtin' | 'midi'): void },
+      ) => void;
+    }).activateOutputMode;
+    const events: string[] = [];
+
+    activateOutputMode?.(
+      'midi',
+      { async initialize() { events.push('request-midi'); } },
+      { setMode(mode) { events.push(`select-${mode}`); } },
+    );
+
+    expect(events).toEqual(['request-midi', 'select-midi']);
+  });
 });
 
 describe('gamepad status', () => {

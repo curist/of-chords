@@ -47,6 +47,15 @@ export function isOutputPanelVisible(panel: OutputMode, mode: OutputMode): boole
   return panel === mode;
 }
 
+export function activateOutputMode(
+  mode: OutputMode,
+  midi: Pick<WebMidiOutputManager, 'initialize'>,
+  output: Pick<OutputController, 'setMode'>,
+): void {
+  if (mode === 'midi') void midi.initialize();
+  output.setMode(mode);
+}
+
 type ScheduleDismiss = (callback: () => void, delay: number) => number;
 type CancelDismiss = (id: number) => void;
 
@@ -239,7 +248,7 @@ export class App {
     this.root.querySelector('#chord-grid')?.addEventListener('pointercancel', releasePointer);
     this.root.querySelector('#output-mode')?.addEventListener('click', (event) => {
       const button = (event.target as Element).closest<HTMLButtonElement>('[data-output]');
-      if (button) this.output.setMode(button.dataset.output as OutputMode);
+      if (button) activateOutputMode(button.dataset.output as OutputMode, this.midi, this.output);
     });
     this.root.querySelector<HTMLSelectElement>('#midi-output')?.addEventListener('change', (event) => {
       this.midi.selectOutput((event.target as HTMLSelectElement).value || null);

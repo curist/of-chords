@@ -106,6 +106,7 @@ export class WebMidiOutputManager implements NoteSink {
       this.#setStatus('unsupported', 'Web MIDI is not supported in this browser. Try Chrome or Edge.');
       return;
     }
+    if (this.#status === 'requesting' || this.#status === 'ready') return;
     this.#setStatus('requesting', 'Requesting MIDI access…');
     try {
       const access = await this.browserNavigator.requestMIDIAccess();
@@ -114,7 +115,8 @@ export class WebMidiOutputManager implements NoteSink {
       this.#setStatus('ready', 'MIDI access granted. Select an output.');
       this.#refreshSelection();
     } catch (error) {
-      const denied = error instanceof DOMException && error.name === 'SecurityError';
+      const denied = error instanceof DOMException
+        && (error.name === 'SecurityError' || error.name === 'NotAllowedError');
       this.#setStatus(denied ? 'denied' : 'error', denied ? 'MIDI access was denied.' : 'Could not access MIDI devices.');
     }
   }
