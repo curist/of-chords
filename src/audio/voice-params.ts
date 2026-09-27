@@ -40,13 +40,13 @@ export interface VoiceParams {
 }
 
 /**
- * The starting voice: bright, punchy polysynth with a warm ambient tail.
- * Square fundamental with a quiet sine octave for shimmer, a gentle low-pass to
- * keep dense chords controlled, a quick attack for chord changes, and a moderate
- * release to connect progressions without muddiness.
+ * The starting voice: mellow electric-piano × soft polysynth × warm pad.
+ * Triangle fundamental with a quiet sine octave for shimmer, a gentle low-pass
+ * to keep dense chords controlled, a quick attack for chord changes, and a
+ * moderate release to connect progressions without muddiness.
  */
 export const DEFAULT_VOICE: VoiceParams = {
-  oscillator: 'square',
+  oscillator: 'triangle',
   harmonicWaveform: 'sine',
   harmonicMix: 0.18,
   detune: 6,

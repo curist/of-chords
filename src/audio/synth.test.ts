@@ -75,11 +75,11 @@ function makeSynth() {
 }
 
 describe('WebAudioSynthSink', () => {
-  it('uses the bright square default voice at the requested output level', () => {
+  it('uses the triangle default voice at the requested output level', () => {
     const { ctx, synth } = makeSynth();
     synth.noteOn(60);
 
-    expect(ctx.oscillators[0].type).toBe('square');
+    expect(ctx.oscillators[0].type).toBe('triangle');
     expect(ctx.gains[0].gain.value).toBe(0.8);
   });
 
