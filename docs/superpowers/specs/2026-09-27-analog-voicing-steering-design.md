@@ -86,6 +86,14 @@ radius to the full 0–1 range, and dispatches intent only when its normalized
 value changes meaningfully. It does not resolve chords, generate notes, or know
 about output destinations.
 
+The first release gives one gamepad analog authority at a time: the connected
+gamepad with the lowest browser gamepad index. Other connected gamepads may
+still press chord buttons, but their analog axes are ignored until they become
+the authority. This deterministic rule prevents two polling sources from
+overwriting one global intent. If authority changes, the controller adapter
+first dispatches one atomic controller reset, then the newly authoritative
+gamepad may publish its sampled intent on the following poll.
+
 The intent type is intentionally independent of sticks. A future MIDI control,
 touch surface, or accessibility input can produce the same voicing intent. The
 first release does not add unused `tension`, `neighborhood`, or `expression`
@@ -99,7 +107,8 @@ Instrument state gains:
 - An ordered collection of held chord owners.
 - An immutable baseline-note snapshot for each active chord.
 - The currently sounding steered notes for each active chord.
-- The most recently sounding voicing used as voice-leading context.
+- An immutable voice-leading anchor for each active chord, captured from the
+  previously focused chord when the new chord is pressed.
 
 The most recently pressed owner that remains held is the focused chord. Only the
 focused chord responds to performance-intent updates.
@@ -117,20 +126,39 @@ Lifecycle rules:
    and immediately applies the current stick intent to it.
 6. Returning the stick to its dead zone restores the focused chord's immutable
    baseline notes.
-7. Controller disconnection resets voicing intent to center and restores all
-   surviving held chords to their baselines.
+7. Disconnecting the authoritative controller dispatches one atomic controller
+   reset. The reducer centers intent, restores all surviving owners to baseline,
+   removes every owner belonging to that controller from the held and focus
+   collections, and emits the complete note delta as one effect. It
+   must not process those owners as a sequence of ordinary releases, because
+   that could briefly apply displaced intent to a fallback chord. A subsequent
+   poll may promote the next-lowest connected gamepad and apply its intent.
+   Disconnecting a non-authoritative controller atomically removes only that
+   controller's owners and does not change current intent.
 8. Panic, window blur, and page hiding continue to release all owners.
 
 The baseline never changes after a chord is pressed. Repeated transformations,
 focus transfers, and intermediate candidates therefore cannot redefine what
 “center” means.
 
+All paths that clear active notes—including panic, program/output changes that
+currently panic, blur, and page hiding—also clear held-owner order, focus,
+baselines, sounding-note snapshots, voice-leading anchors, and hysteresis
+selections, and reset performance intent to center. There must never be
+performance state for an owner absent from the active-note ledger.
+
 ## Voicing Candidate Generation
 
 The pure voicing engine receives the chord tones, baseline notes, current
-sounding notes, previous musical context, and normalized voicing intent. It
-generates candidates around the baseline rather than mutating oscillator or MIDI
-state.
+sounding notes, the owner's voice-leading anchor, and normalized voicing
+intent. It generates candidates around the baseline rather than mutating
+oscillator or MIDI state.
+
+The anchor is a note-array snapshot of the previously focused owner's sounding
+voicing at press time. It is not updated by later stick movement and is deleted
+with its owner. If no chord was focused at press time, the new owner has no
+anchor. This gives a newly pressed chord progression context without allowing
+overlapping chords or focus fallback to mutate one another's scoring history.
 
 For the chord's three or four pitch classes, candidate generation includes:
 
@@ -161,19 +189,30 @@ score =
   + transitionMovement
   + largeLeapPenalty
   + registerBoundaryPenalty
-  + verticalIntentMismatch × abs(vertical)
-  + openingIntentMismatch × abs(opening)
+  + verticalMagnitudeMismatch
+  + openingMagnitudeMismatch
 ```
 
 - `baselineDistance` makes the exact legacy notes dominant at neutral input.
 - `transitionMovement` favors retained common tones and short motion from the
-  chord's current sounding notes and recent voice-leading context.
+  chord's current sounding notes, with the immutable voice-leading anchor used
+  when selecting its first displaced candidate.
 - `largeLeapPenalty` discourages unexplained octave jumps in individual voices.
 - `registerBoundaryPenalty` keeps candidates away from uncomfortable extremes.
-- `verticalIntentMismatch` compares the requested Y direction with change in the
-  candidate's center of gravity.
-- `openingIntentMismatch` compares X intent with span added above or below the
-  baseline.
+- Each candidate exposes `realizedVertical` in `-1…1`: its center-of-gravity
+  delta from baseline divided by the named maximum vertical displacement and
+  clamped to that range. `verticalMagnitudeMismatch` is the squared difference
+  between that value and requested `vertical`, multiplied by a named weight.
+- Each candidate exposes `realizedOpening` in `-1…1`: negative for span added
+  below baseline and positive for span added above, normalized by the named
+  maximum opening and clamped. `openingMagnitudeMismatch` is the squared
+  difference between that value and requested `opening`, multiplied by a named
+  weight.
+
+Consequently, stick distance requests a target amount rather than merely
+turning a directional preference on. Candidate discreteness means the audible
+result changes at boundaries, but increasing axis magnitude must select
+non-decreasing realized magnitude, subject to range constraints and hysteresis.
 
 Neutral input bypasses optimization and returns the exact baseline. This is a
 hard invariant, not merely a large scoring weight.
@@ -209,8 +248,9 @@ held chords are not retriggered or prematurely released.
 ## UI and Feedback
 
 The existing “Currently sounding” panel continues to display actual note names
-and MIDI numbers, updating whenever the focused chord is revoiced. The focused
-active chord receives a small `Focused` marker and a compact intent description:
+and MIDI numbers, updating whenever the focused chord is revoiced. Its
+owner-specific row receives a small `Focused` marker and a compact intent
+description:
 
 - `Voicing centered`
 - `Moving up`
@@ -222,6 +262,10 @@ active chord receives a small `Focused` marker and a compact intent description:
 The chord's name and Roman numeral remain unchanged because voicing steering
 does not alter its harmonic identity. The initial release does not expose
 inversion numbers, scoring values, or a full stick visualization.
+
+Degree pads retain their existing aggregate active state and do not show focus.
+This remains unambiguous when two input owners hold the same degree because the
+focus marker belongs to a Currently Sounding owner row rather than the pad.
 
 Keyboard and pointer players retain existing behavior. Without a connected
 analog controller, intent remains centered and the focused marker is still
@@ -259,16 +303,22 @@ Pure unit tests cover:
 
 - Axis normalization, positive-down Y inversion, radial dead-zone rescaling,
   drift suppression, and meaningful-change dispatch.
+- Deterministic lowest-index analog authority, ignored secondary axes,
+  authority promotion, and two-controller connect/poll/disconnect sequences.
 - Candidate validity, range bounds, deduplication, and deterministic ordering.
 - Exact baseline output at neutral intent.
 - Higher/lower center-of-gravity preference from Y input.
 - Upward/downward opening preference from X input.
+- Non-decreasing realized transformation strength as stick magnitude increases.
 - Combined diagonal intent.
 - Stable candidate selection within the hysteresis margin.
 - Focus assignment, last-pressed-held fallback, and non-focused release.
 - Immediate application of current intent when focus transfers.
 - Live replacement and exact restoration on return to center.
-- Reset and baseline restoration on controller disconnect.
+- Atomic controller reset and baseline restoration on disconnect, with no
+  transient fallback revoice or intermediate note-event burst.
+- Complete correlated-state cleanup on panic, blur, page hiding, and output or
+  program changes that clear active notes.
 - Atomic ledger replacement, shared-note retention, reference counts, Note On
   before Note Off ordering, and exception resilience.
 - Triad, seventh, sus2, and sus4 behavior.
