@@ -1,11 +1,11 @@
 import type { ScaleDegree } from '../music/chords';
 import type { InstrumentAction } from '../state/instrument';
 
-export type GamepadInputStatus = 'waiting' | 'activating' | 'ready';
+export type GamepadInputStatus = 'hidden' | 'activating' | 'ready';
 
 export function describeGamepadStatus(status: GamepadInputStatus): string {
   switch (status) {
-    case 'waiting': return 'Press A to connect controller';
+    case 'hidden': return '';
     case 'activating': return 'Release controller buttons';
     case 'ready': return 'Controller ready';
   }
@@ -73,7 +73,7 @@ export class GamepadInput {
     const disconnected = (event: GamepadEventLike) => this.#disconnect(event.gamepad.index);
     this.target.addEventListener('gamepadconnected', connected);
     this.target.addEventListener('gamepaddisconnected', disconnected);
-    this.updateStatus('waiting');
+    this.updateStatus('hidden');
 
     const poll = () => {
       for (const gamepad of this.navigator.getGamepads()) {
@@ -135,6 +135,6 @@ export class GamepadInput {
       this.dispatch({ type: 'release', owner: `gamepad:${index}:button:${buttonIndex}` });
     }
     this.#controllers.delete(index);
-    this.updateStatus(this.#controllers.size ? 'ready' : 'waiting');
+    this.updateStatus(this.#controllers.size ? 'ready' : 'hidden');
   }
 }

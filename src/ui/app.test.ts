@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { commitModeSelection, commitProgramSelection, commitTonicSelection, commitVoiceSelection, isOutputPanelVisible } from './app';
+import { commitModeSelection, commitProgramSelection, commitTonicSelection, commitVoiceSelection, isGamepadStatusVisible, isOutputPanelVisible } from './app';
 import type { InstrumentAction } from '../state/instrument';
 
 describe('tonic selection', () => {
@@ -45,6 +45,14 @@ describe('output-specific controls', () => {
   it('shows MIDI controls only while MIDI is selected', () => {
     expect(isOutputPanelVisible('midi', 'midi')).toBe(true);
     expect(isOutputPanelVisible('midi', 'builtin')).toBe(false);
+  });
+});
+
+describe('gamepad status', () => {
+  it('stays hidden until a controller is detected', () => {
+    expect(isGamepadStatusVisible('hidden')).toBe(false);
+    expect(isGamepadStatusVisible('activating')).toBe(true);
+    expect(isGamepadStatusVisible('ready')).toBe(true);
   });
 });
 

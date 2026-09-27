@@ -72,12 +72,13 @@ describe('GamepadInput', () => {
     frames.run();
     current = gamepad(0);
     frames.run();
+    target.emit('gamepaddisconnected', current);
 
     expect(actions).toEqual([
       { type: 'press', owner: 'gamepad:0:button:1', degree: 2 },
       { type: 'release', owner: 'gamepad:0:button:1' },
     ]);
-    expect(statuses).toEqual(['waiting', 'activating', 'ready']);
+    expect(statuses).toEqual(['hidden', 'activating', 'ready', 'hidden']);
     detach();
   });
 
@@ -120,8 +121,7 @@ describe('GamepadInput', () => {
 });
 
 describe('gamepad status', () => {
-  it('gives the player an activation instruction until the controller is ready', () => {
-    expect(describeGamepadStatus('waiting')).toBe('Press A to connect controller');
+  it('describes a detected controller while it activates and becomes ready', () => {
     expect(describeGamepadStatus('activating')).toBe('Release controller buttons');
     expect(describeGamepadStatus('ready')).toBe('Controller ready');
   });

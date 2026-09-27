@@ -47,6 +47,10 @@ export function isOutputPanelVisible(panel: OutputMode, mode: OutputMode): boole
   return panel === mode;
 }
 
+export function isGamepadStatusVisible(status: GamepadInputStatus): boolean {
+  return status !== 'hidden';
+}
+
 // The voice-tuning panel is for iterating on the built-in voice, so it only
 // appears in dev (`npm run dev`), never in a production build.
 const SHOW_VOICE_TUNING = import.meta.env.DEV;
@@ -74,6 +78,7 @@ export class App {
     const pill = this.root.querySelector<HTMLElement>('#gamepad-status-pill');
     if (!pill) return;
     pill.dataset.status = status;
+    pill.hidden = !isGamepadStatusVisible(status);
     pill.querySelector('b')!.textContent = describeGamepadStatus(status);
   }
 
@@ -83,7 +88,7 @@ export class App {
         <header class="hero">
           <p class="eyebrow">Of Chords</p>
           <div class="header-statuses">
-            <div class="status-pill" id="gamepad-status-pill" data-status="waiting"><span></span><b>Press A to connect controller</b></div>
+            <div class="status-pill" id="gamepad-status-pill" data-status="hidden" hidden><span></span><b></b></div>
             <div class="status-pill" id="output-status-pill"><span></span><b>Built-in voice</b></div>
           </div>
         </header>
