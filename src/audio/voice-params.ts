@@ -1,5 +1,5 @@
 /**
- * Sound-design parameters for the built-in WebChords voice.
+ * Sound-design parameters for the built-in Of Chords voice.
  *
  * These are kept deliberately separate from the synth engine (synth.ts) so we
  * can iterate on the sound — via the development tuning panel — without touching

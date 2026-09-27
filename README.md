@@ -1,4 +1,4 @@
-# WebChords
+# Of Chords
 
 An experimental browser instrument for playing and understanding major-key diatonic harmony with seven adjacent keys.
 
@@ -36,3 +36,7 @@ keyboard / gamepad / UI → actions → reducer/store → MIDI effects → note 
 ```
 
 Tests focus on harmony, voicing, reducer behavior, input repeat safety, and MIDI note lifecycle. See [`docs/TODO.md`](docs/TODO.md) for deliberately deferred experiments and non-goals.
+
+## Deploy
+
+Pushes to `main` build and deploy the app with GitHub Actions. In the repository settings, select **GitHub Actions** as the Pages source under **Settings → Pages**.

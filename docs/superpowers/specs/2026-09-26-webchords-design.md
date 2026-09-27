@@ -1,4 +1,4 @@
-# WebChords MVP Design
+# Of Chords MVP Design
 
 ## Intent
 

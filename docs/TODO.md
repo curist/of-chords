@@ -1,6 +1,6 @@
-# WebChords TODO
+# Of Chords TODO
 
-This file tracks work intentionally deferred beyond the first playable MVP. It is not a promise to turn WebChords into a DAW.
+This file tracks work intentionally deferred beyond the first playable MVP. It is not a promise to turn Of Chords into a DAW.
 
 ## Next interaction experiments
 

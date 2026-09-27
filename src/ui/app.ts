@@ -81,7 +81,7 @@ export class App {
     this.root.innerHTML = `
       <main class="instrument">
         <header class="hero">
-          <p class="eyebrow">WebChords · Browser harmony instrument</p>
+          <p class="eyebrow">Of Chords</p>
           <div class="header-statuses">
             <div class="status-pill" id="gamepad-status-pill" data-status="waiting"><span></span><b>Press A to connect controller</b></div>
             <div class="status-pill" id="output-status-pill"><span></span><b>Built-in voice</b></div>
@@ -294,7 +294,7 @@ export class App {
     if (this.#mode === 'builtin') {
       pill.dataset.status = 'ready';
       pill.querySelector('b')!.textContent = 'Built-in voice';
-      message.textContent = 'Playing the built-in WebChords voice.';
+      message.textContent = 'Playing the built-in voice.';
       return;
     }
     const midi = this.#latestMidi;

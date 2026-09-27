@@ -2,7 +2,7 @@ import type { NoteSink } from '../midi/note-ledger';
 import { DEFAULT_VOICE, type VoiceParams } from './voice-params';
 
 /**
- * A small polyphonic Web Audio voice — the built-in WebChords sound.
+ * A small polyphonic Web Audio voice — the built-in Of Chords sound.
  *
  * Per note the graph is:
  *
