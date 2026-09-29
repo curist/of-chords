@@ -174,7 +174,7 @@ export class App {
         <section class="readout-grid">
           <article class="panel now" aria-live="polite">
             <p class="section-label">Currently sounding</p>
-            <div id="currently-sounding" class="empty-state">Press a chord key</div>
+            <div id="currently-sounding" class="empty-state">Play a chord</div>
           </article>
           <article class="panel history">
             <p class="section-label">Recent progression</p>
@@ -316,7 +316,7 @@ export class App {
     const active = Object.values(state.active);
     const current = this.root.querySelector<HTMLElement>('#currently-sounding')!;
     current.classList.toggle('empty-state', active.length === 0);
-    current.innerHTML = active.length === 0 ? 'Press a chord key' : active.map((gesture) => this.#renderGesture(gesture)).join('');
+    current.innerHTML = active.length === 0 ? 'Play a chord' : active.map((gesture) => this.#renderGesture(gesture)).join('');
 
     const historyNames = this.root.querySelector<HTMLElement>('#history-names')!;
     historyNames.classList.toggle('empty-state', state.history.length === 0);

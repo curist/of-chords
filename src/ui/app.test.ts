@@ -197,6 +197,16 @@ describe('MIDI input controls', () => {
 });
 
 describe('performance readout', () => {
+  it('invites any performance when idle, including after releasing a MIDI note', () => {
+    const { root, store } = createAppFixture();
+    const current = root.querySelector<HTMLElement>('#currently-sounding')!;
+    expect(current.textContent).toBe('Play a chord');
+
+    store.dispatch({ type: 'press-note', owner: 'midi:61', note: 61, velocity: 90 });
+    store.dispatch({ type: 'release', owner: 'midi:61' });
+    expect(current.textContent).toBe('Play a chord');
+  });
+
   it('shows chord name, Roman numeral, and notes and includes chords in recent progression', () => {
     const { root, store } = createAppFixture();
     store.dispatch({ type: 'press', owner: 'keyboard:a', degree: 1 });
