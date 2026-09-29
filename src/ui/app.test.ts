@@ -61,28 +61,42 @@ const readyInput: MidiInputSnapshot = {
 };
 
 describe('tonic selection', () => {
-  it('dispatches the selected tonic and returns focus to the instrument', () => {
-    const blur = vi.fn();
-    const select = { value: '7', blur } as unknown as HTMLSelectElement;
+  it('dispatches the selected tonic', () => {
+    const select = { value: '7' } as HTMLSelectElement;
     const actions: InstrumentAction[] = [];
 
     commitTonicSelection(select, (action) => actions.push(action));
 
     expect(actions).toEqual([{ type: 'set-tonic', tonic: 7 }]);
-    expect(blur).toHaveBeenCalledOnce();
   });
 });
 
 describe('mode selection', () => {
-  it('dispatches the selected mode and returns focus to the instrument', () => {
-    const blur = vi.fn();
-    const select = { value: 'naturalMinor', blur } as unknown as HTMLSelectElement;
+  it('dispatches the selected mode', () => {
+    const select = { value: 'naturalMinor' } as HTMLSelectElement;
     const actions: InstrumentAction[] = [];
 
     commitModeSelection(select, (action) => actions.push(action));
 
     expect(actions).toEqual([{ type: 'set-mode', mode: 'naturalMinor' }]);
-    expect(blur).toHaveBeenCalledOnce();
+  });
+});
+
+describe('select focus', () => {
+  it('blurs every select after its selection changes', () => {
+    const { root } = createAppFixture();
+    const selects = [...root.querySelectorAll<HTMLSelectElement>('select')];
+
+    expect(selects.length).toBeGreaterThan(0);
+    for (const select of selects) {
+      select.disabled = false;
+      select.focus();
+      expect(document.activeElement).toBe(select);
+
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+
+      expect(document.activeElement).not.toBe(select);
+    }
   });
 });
 
@@ -304,14 +318,12 @@ describe('gamepad status', () => {
 });
 
 describe('voice waveform selection', () => {
-  it('applies the waveform and returns focus to the instrument', () => {
-    const blur = vi.fn();
-    const select = { value: 'square', blur } as unknown as HTMLSelectElement;
+  it('applies the waveform', () => {
+    const select = { value: 'square' } as HTMLSelectElement;
     const values: string[] = [];
 
     commitVoiceSelection(select, (value) => values.push(value));
 
     expect(values).toEqual(['square']);
-    expect(blur).toHaveBeenCalledOnce();
   });
 });

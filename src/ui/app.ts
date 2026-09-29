@@ -18,7 +18,6 @@ export function commitTonicSelection(
   dispatch: (action: InstrumentAction) => void,
 ): void {
   dispatch({ type: 'set-tonic', tonic: Number(select.value) });
-  select.blur();
 }
 
 export function commitModeSelection(
@@ -26,7 +25,6 @@ export function commitModeSelection(
   dispatch: (action: InstrumentAction) => void,
 ): void {
   dispatch({ type: 'set-mode', mode: select.value as Mode });
-  select.blur();
 }
 
 export function commitProgramSelection(
@@ -42,7 +40,6 @@ export function commitVoiceSelection(
   apply: (value: string) => void,
 ): void {
   apply(select.value);
-  select.blur();
 }
 
 export function isOutputPanelVisible(panel: OutputMode, mode: OutputMode): boolean {
@@ -233,6 +230,9 @@ export class App {
   }
 
   #bindControls(): void {
+    this.root.addEventListener('change', (event) => {
+      if (event.target instanceof HTMLSelectElement) event.target.blur();
+    });
     this.root.querySelector<HTMLSelectElement>('#tonic-select')?.addEventListener('change', (event) => {
       commitTonicSelection(event.target as HTMLSelectElement, (action) => this.store.dispatch(action));
     });
