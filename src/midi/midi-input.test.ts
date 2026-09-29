@@ -208,6 +208,30 @@ describe('WebMidiInputManager', () => {
     expect(h.store.getState().active['midi:keys:ch:0:note:60']).toBeDefined();
   });
 
+  it('requires explicit resume after clearing and reselecting a suspended input', async () => {
+    const h = setup();
+    await h.access.initialize();
+    h.manager.selectInput('keys');
+    for (let index = 0; index < 65; index++) send(h.inputs[0], [0x90, index, 90]);
+    expect(h.manager.snapshot().status).toBe('suspended');
+
+    h.manager.selectInput(null);
+    expect(h.manager.snapshot()).toMatchObject({ status: 'suspended', preferredInputId: null, attachedInputId: null });
+    expect(h.values.has('webchords.midi-input-id')).toBe(false);
+    h.manager.selectInput('keys');
+    expect(h.manager.snapshot()).toMatchObject({ status: 'suspended', preferredInputId: 'keys', attachedInputId: null });
+    expect(h.inputs[0].onmidimessage).toBeNull();
+    const actionCount = h.actions.length;
+    send(h.inputs[0], [0x90, 72, 80]);
+    expect(h.actions).toHaveLength(actionCount);
+    expect(h.store.getState().active['midi:keys:ch:0:note:72']).toBeUndefined();
+
+    h.manager.resume();
+    expect(h.manager.snapshot()).toMatchObject({ status: 'ready', attachedInputId: 'keys' });
+    send(h.inputs[0], [0x90, 72, 80]);
+    expect(h.store.getState().active['midi:keys:ch:0:note:72']).toBeDefined();
+  });
+
   it('does not count Note Offs or ignored messages toward the rolling limit', async () => {
     let time = 0;
     const h = setup([input('keys')], null, () => time);

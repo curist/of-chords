@@ -93,7 +93,6 @@ export class WebMidiInputManager {
     this.#preferredInputId = id;
     if (id === null) {
       this.#storageRemove();
-      this.#suspended = false;
     } else {
       this.#storageSet(id);
     }
