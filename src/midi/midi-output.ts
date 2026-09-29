@@ -9,6 +9,7 @@ export interface MidiOutputSnapshot {
   readonly message: string;
   readonly outputs: readonly MidiPortInfo[];
   readonly selectedOutputId: string | null;
+  readonly preferredOutputId: string | null;
 }
 
 const STORAGE_KEY = 'webchords.midi-output-id';
@@ -36,6 +37,7 @@ export class WebMidiOutputManager implements NoteSink {
       message: this.#message,
       outputs: this.access.snapshot().outputs,
       selectedOutputId: this.#output?.id ?? null,
+      preferredOutputId: this.#output?.id ?? this.#storageGet(),
     };
   }
 

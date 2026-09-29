@@ -20,11 +20,15 @@ function createAppFixture() {
     return option;
   });
   const synth = new WebAudioSynthSink();
-  const outputSnapshot = { status: 'idle', message: 'MIDI access has not been requested.', outputs: [], selectedOutputId: null } satisfies MidiOutputSnapshot;
+  const outputSnapshot = {
+    status: 'idle', message: 'MIDI access has not been requested.', outputs: [],
+    selectedOutputId: null, preferredOutputId: null,
+  } satisfies MidiOutputSnapshot;
+  let outputListener: (snapshot: MidiOutputSnapshot) => void = () => {};
   const midi = {
     initialize: vi.fn(async () => {}),
     selectOutput: vi.fn(),
-    subscribe(listener: (snapshot: MidiOutputSnapshot) => void) { listener(outputSnapshot); return () => {}; },
+    subscribe(listener: (snapshot: MidiOutputSnapshot) => void) { outputListener = listener; listener(outputSnapshot); return () => {}; },
     noteOn() {}, noteOff() {}, allNotesOff() {}, programChange() {},
   };
   const output = new OutputController(synth, midi, { storage: null });
@@ -42,6 +46,7 @@ function createAppFixture() {
     input as unknown as WebMidiInputManager, access as unknown as WebMidiAccess);
   return {
     root, store, output, input, access,
+    emitOutput(snapshot: MidiOutputSnapshot) { outputListener(snapshot); },
     emitInput(snapshot: MidiInputSnapshot) { inputListener(snapshot); },
   };
 }
@@ -196,6 +201,26 @@ describe('MIDI input controls', () => {
     action.click();
     expect(input.resume).toHaveBeenCalledOnce();
     expect(access.initialize).toHaveBeenCalledOnce();
+  });
+});
+
+describe('MIDI output controls', () => {
+  it('marks the attached output and keeps a disconnected preferred output visible', () => {
+    const { root, emitOutput } = createAppFixture();
+    const select = root.querySelector<HTMLSelectElement>('#midi-output')!;
+    emitOutput({
+      status: 'ready', message: 'Connected to Synth.',
+      outputs: [{ id: 'synth', name: 'Synth', manufacturer: 'Acme', state: 'connected' }],
+      selectedOutputId: 'synth', preferredOutputId: 'synth',
+    });
+    expect(select.selectedOptions[0].textContent).toBe('Synth · Acme (connected)');
+
+    emitOutput({
+      status: 'ready', message: 'MIDI ready. Select an output.', outputs: [],
+      selectedOutputId: null, preferredOutputId: 'synth',
+    });
+    expect(select.value).toBe('synth');
+    expect(select.selectedOptions[0].textContent).toBe('Preferred output (disconnected)');
   });
 });
 

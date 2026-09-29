@@ -123,6 +123,24 @@ describe('WebMidiOutputManager failure boundaries', () => {
     expect(manager.snapshot()).toMatchObject({ selectedOutputId: null, message: 'No MIDI output selected.' });
   });
 
+  it('retains the preferred output identity while its port is disconnected', async () => {
+    const outputs: FakeOutput[] = [{ id: 'one', name: 'Synth', state: 'connected', send() {} }];
+    const stored = new Map<string, string>();
+    const storage = {
+      getItem(key: string) { return stored.get(key) ?? null; },
+      setItem(key: string, value: string) { stored.set(key, value); },
+      removeItem(key: string) { stored.delete(key); },
+    };
+    const browserAccess = fakeAccess(outputs);
+    const manager = new WebMidiOutputManager(fakeNavigator(browserAccess), storage);
+    await manager.initialize();
+    manager.selectOutput('one');
+    outputs.splice(0, 1);
+    browserAccess.onstatechange?.();
+
+    expect(manager.snapshot()).toMatchObject({ selectedOutputId: null, preferredOutputId: 'one' });
+  });
+
   it('contains send failures and requests lifecycle cleanup', async () => {
     const output = { id: 'one', name: 'Synth', state: 'connected' as const, send() { throw new DOMException('gone', 'InvalidStateError'); } };
     const manager = new WebMidiOutputManager(fakeNavigator(fakeAccess([output])), null);

@@ -338,12 +338,16 @@ export class App {
     const select = this.root.querySelector<HTMLSelectElement>('#midi-output')!;
     const emptyOption = new Option('No output selected', '');
     const outputOptions = snapshot.outputs.map((output) => new Option(
-      `${output.name}${output.manufacturer ? ` · ${output.manufacturer}` : ''}`,
+      `${output.name}${output.manufacturer ? ` · ${output.manufacturer}` : ''}${output.id === snapshot.selectedOutputId ? ' (connected)' : ''}`,
       output.id,
     ));
+    if (snapshot.preferredOutputId && !snapshot.outputs.some((output) => output.id === snapshot.preferredOutputId)) {
+      outputOptions.push(new Option('Preferred output (disconnected)', snapshot.preferredOutputId));
+    }
     select.replaceChildren(emptyOption, ...outputOptions);
-    select.value = snapshot.selectedOutputId ?? '';
-    select.disabled = snapshot.status !== 'ready' || snapshot.outputs.length === 0;
+    select.value = snapshot.preferredOutputId ?? '';
+    select.disabled = snapshot.status !== 'ready'
+      || (snapshot.outputs.length === 0 && snapshot.preferredOutputId === null);
     this.#renderStatus();
   }
 
