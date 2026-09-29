@@ -71,10 +71,10 @@ describe('WebMidiInputManager', () => {
     send(h.inputs[0], [0x90, 60, 91]);
     send(h.inputs[0], [0x90, 66, 37]);
     expect(h.actions).toEqual([
-      { type: 'press', owner: 'midi:keys:ch:0:note:60', degree: 1, velocity: 91 },
+      { type: 'press', owner: 'midi:keys:ch:0:note:60', degree: 1, velocity: 91, bassNote: 60 },
       { type: 'press-note', owner: 'midi:keys:ch:0:note:66', note: 66, velocity: 37 },
     ]);
-    expect(h.store.getState().active['midi:keys:ch:0:note:60']).toMatchObject({ kind: 'chord', velocity: 91 });
+    expect(h.store.getState().active['midi:keys:ch:0:note:60']).toMatchObject({ kind: 'chord', velocity: 91, notes: [60, 64, 67] });
     expect(h.store.getState().active['midi:keys:ch:0:note:66']).toMatchObject({ kind: 'literal', note: 66, velocity: 37 });
   });
 
@@ -91,7 +91,7 @@ describe('WebMidiInputManager', () => {
     expect(h.store.getState().active['midi:keys:ch:0:note:60']).toBeUndefined();
     expect(h.store.getState().active['midi:keys:ch:15:note:60']).toMatchObject({ degree: 1 });
     send(h.inputs[0], [0x9f, 62, 44]);
-    expect(h.actions.at(-1)).toEqual({ type: 'press', owner: 'midi:keys:ch:15:note:62', degree: 1, velocity: 44 });
+    expect(h.actions.at(-1)).toEqual({ type: 'press', owner: 'midi:keys:ch:15:note:62', degree: 1, velocity: 44, bassNote: 62 });
     send(h.inputs[0], [0x8f, 60, 0]);
     expect(h.store.getState().active['midi:keys:ch:15:note:60']).toBeUndefined();
   });

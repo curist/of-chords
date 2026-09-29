@@ -181,7 +181,7 @@ export class WebMidiInputManager {
       const degree = scaleDegreeForPitchClass(tonic, mode, message.note % 12);
       this.dispatch(degree === null
         ? { type: 'press-note', owner, note: message.note, velocity: message.velocity }
-        : { type: 'press', owner, degree, velocity: message.velocity });
+        : { type: 'press', owner, degree, velocity: message.velocity, bassNote: message.note });
     } catch {
       // A bad message or dispatch callback must not disable the input.
     }

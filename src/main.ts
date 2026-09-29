@@ -2,6 +2,7 @@ import './styles.css';
 import { WebAudioSynthSink } from './audio/synth';
 import { GamepadInput, type FrameScheduler, type GamepadEventTarget, type GamepadNavigator } from './input/gamepad';
 import { KeyboardInput, type KeyboardEventTarget } from './input/keyboard';
+import { handlePageHide } from './lifecycle/page-lifecycle';
 import { WebMidiAccess } from './midi/midi-access';
 import { WebMidiInputManager } from './midi/midi-input';
 import { NoteLedger } from './midi/note-ledger';
@@ -53,11 +54,7 @@ new GamepadInput(
 
 const panic = () => store.dispatch({ type: 'panic' });
 window.addEventListener('blur', panic);
-window.addEventListener('pagehide', () => {
-  midiInput.dispose();
-  panic();
-  midi.dispose();
-});
+window.addEventListener('pagehide', (event) => handlePageHide(event, midiInput, midi, panic));
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') panic();
 });

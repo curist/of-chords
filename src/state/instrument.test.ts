@@ -25,6 +25,22 @@ describe('instrument reducer and store', () => {
     expect(target.events).toEqual(['acquire:midi:1:48,52,55:37']);
   });
 
+  it('anchors a MIDI chord on the incoming note and ignores inversion for that gesture', () => {
+    let state = reduceInstrument(createInitialState(), { type: 'set-inversion', inversion: 2 }).state;
+    const result = reduceInstrument(state, {
+      type: 'press', owner: 'midi:1', degree: 1, velocity: 37, bassNote: 72,
+    });
+    expect(result.state.active['midi:1']).toMatchObject({ kind: 'chord', notes: [72, 76, 79] });
+    expect(result.effects).toEqual([{ type: 'acquire', owner: 'midi:1', notes: [72, 76, 79], velocity: 37 }]);
+  });
+
+  it('omits anchored chord tones that would exceed the MIDI note range', () => {
+    const result = reduceInstrument(createInitialState(), {
+      type: 'press', owner: 'midi:high', degree: 2, bassNote: 122,
+    });
+    expect(result.state.active['midi:high'].notes).toEqual([122, 125]);
+  });
+
   it('records a literal note and omits it from chord history', () => {
     const result = reduceInstrument(createInitialState(), { type: 'press-note', owner: 'midi:61', note: 61, velocity: 73 });
     expect(result.state.active['midi:61']).toMatchObject({

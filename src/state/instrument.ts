@@ -43,7 +43,7 @@ export interface InstrumentState {
 }
 
 export type InstrumentAction =
-  | { readonly type: 'press'; readonly owner: string; readonly degree: ScaleDegree; readonly velocity?: number }
+  | { readonly type: 'press'; readonly owner: string; readonly degree: ScaleDegree; readonly velocity?: number; readonly bassNote?: number }
   | { readonly type: 'press-note'; readonly owner: string; readonly note: number; readonly velocity: number }
   | { readonly type: 'release'; readonly owner: string }
   | { readonly type: 'set-tonic'; readonly tonic: PitchClass }
@@ -83,6 +83,11 @@ function clampMidiInteger(value: number, minimum: number): number {
   return Math.min(127, Math.max(minimum, Math.trunc(value)));
 }
 
+function voiceChordFromBass(intervals: readonly number[], bassNote: number): number[] {
+  const bass = clampMidiInteger(bassNote, 0);
+  return intervals.map((interval) => bass + interval).filter((note) => note <= 127);
+}
+
 export function reduceInstrument(state: InstrumentState, action: InstrumentAction): InstrumentTransition {
   switch (action.type) {
     case 'press': {
@@ -95,7 +100,9 @@ export function reduceInstrument(state: InstrumentState, action: InstrumentActio
         shape: state.shape,
         inversion: state.inversion,
       });
-      const notes = voiceChord(chord, state.register);
+      const notes = action.bassNote === undefined
+        ? voiceChord(chord, state.register)
+        : voiceChordFromBass(chord.intervals, action.bassNote);
       const activeChord: ActiveChord = {
         kind: 'chord',
         owner: action.owner,
@@ -106,7 +113,7 @@ export function reduceInstrument(state: InstrumentState, action: InstrumentActio
         notes,
         noteNames: notes.map(midiNoteName),
         shape: state.shape,
-        inversion: state.inversion,
+        inversion: action.bassNote === undefined ? state.inversion : 0,
       };
       return {
         state: {

@@ -14,9 +14,9 @@
 
 - Accept Note On and Note Off on all 16 input channels; keep MIDI output on channel 1.
 - Treat Note On with velocity zero as Note Off; ignore all other MIDI message classes in this release.
-- Map pitch classes enharmonically against the current tonic and mode; input octave does not change chord voicing.
+- Map pitch classes enharmonically against the current tonic and mode; anchor generated chords on the exact input note as their lowest note.
 - Pass an out-of-scale input through at its exact MIDI note number.
-- Snapshot mapping, shape, inversion, voiced notes, and velocity at Note On; later setting changes do not mutate held gestures.
+- Snapshot mapping, shape, voiced notes, and velocity at Note On; MIDI input ignores inversion, and later setting changes do not mutate held gestures.
 - Propagate velocity `1...127`; existing non-MIDI inputs retain default velocity 100.
 - Preserve ledger reference counting: shared notes receive only the first Note On and final Note Off, without velocity replacement or retrigger.
 - Permit independent input and output ports belonging to the same physical device.

@@ -44,10 +44,11 @@ Mapping uses the current tonic and mode at Note On time. The input note's pitch
 class is compared enharmonically with the seven pitch classes in the current
 scale:
 
-- A matching pitch class dispatches the corresponding degree press. The normal
-  harmony engine applies the current chord shape and inversion, and the normal
-  voicer uses the app's current register. The input note's octave does not move
-  the generated chord.
+- A matching pitch class dispatches the corresponding degree press, anchored
+  on the exact input note. The harmony engine applies the current chord shape,
+  then stacks its intervals above the input note so that note is always the
+  chord's lowest key. MIDI-triggered chords ignore the app's inversion setting;
+  inversion continues to affect keyboard, pointer, and gamepad gestures.
 - A non-matching pitch class dispatches a literal-note press containing the
   exact input MIDI note number.
 
