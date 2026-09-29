@@ -5,8 +5,10 @@ import type { Mode } from '../music/scales';
 import { voiceChord } from '../music/voicing';
 
 export interface ActiveChord {
+  readonly kind: 'chord';
   readonly owner: string;
   readonly degree: ScaleDegree;
+  readonly velocity: number;
   readonly name: string;
   readonly roman: string;
   readonly notes: readonly number[];
@@ -15,19 +17,34 @@ export interface ActiveChord {
   readonly inversion: Inversion;
 }
 
+export interface ActiveLiteralNote {
+  readonly kind: 'literal';
+  readonly owner: string;
+  readonly degree?: never;
+  readonly note: number;
+  readonly velocity: number;
+  readonly name: string;
+  readonly roman: 'Passthrough';
+  readonly notes: readonly number[];
+  readonly noteNames: readonly string[];
+}
+
+export type ActiveGesture = ActiveChord | ActiveLiteralNote;
+
 export interface InstrumentState {
   readonly tonic: PitchClass;
   readonly mode: Mode;
   readonly shape: ChordShape;
   readonly inversion: Inversion;
   readonly register: number;
-  readonly active: Readonly<Record<string, ActiveChord>>;
+  readonly active: Readonly<Record<string, ActiveGesture>>;
   readonly history: readonly ActiveChord[];
   readonly program: number | null;
 }
 
 export type InstrumentAction =
-  | { readonly type: 'press'; readonly owner: string; readonly degree: ScaleDegree }
+  | { readonly type: 'press'; readonly owner: string; readonly degree: ScaleDegree; readonly velocity?: number }
+  | { readonly type: 'press-note'; readonly owner: string; readonly note: number; readonly velocity: number }
   | { readonly type: 'release'; readonly owner: string }
   | { readonly type: 'set-tonic'; readonly tonic: PitchClass }
   | { readonly type: 'set-mode'; readonly mode: Mode }
@@ -39,7 +56,7 @@ export type InstrumentAction =
   | { readonly type: 'panic' };
 
 export type InstrumentEffect =
-  | { readonly type: 'acquire'; readonly owner: string; readonly notes: readonly number[] }
+  | { readonly type: 'acquire'; readonly owner: string; readonly notes: readonly number[]; readonly velocity: number }
   | { readonly type: 'release'; readonly owner: string }
   | { readonly type: 'program-change'; readonly program: number }
   | { readonly type: 'panic' };
@@ -62,10 +79,15 @@ export function createInitialState(): InstrumentState {
   };
 }
 
+function clampMidiInteger(value: number, minimum: number): number {
+  return Math.min(127, Math.max(minimum, Math.trunc(value)));
+}
+
 export function reduceInstrument(state: InstrumentState, action: InstrumentAction): InstrumentTransition {
   switch (action.type) {
     case 'press': {
       if (state.active[action.owner]) return { state, effects: [] };
+      const velocity = action.velocity === undefined ? 100 : clampMidiInteger(action.velocity, 1);
       const chord = resolveChord({
         tonic: state.tonic,
         mode: state.mode,
@@ -75,8 +97,10 @@ export function reduceInstrument(state: InstrumentState, action: InstrumentActio
       });
       const notes = voiceChord(chord, state.register);
       const activeChord: ActiveChord = {
+        kind: 'chord',
         owner: action.owner,
         degree: action.degree,
+        velocity,
         name: chord.name,
         roman: chord.roman,
         notes,
@@ -90,7 +114,28 @@ export function reduceInstrument(state: InstrumentState, action: InstrumentActio
           active: { ...state.active, [action.owner]: activeChord },
           history: [...state.history, activeChord].slice(-8),
         },
-        effects: [{ type: 'acquire', owner: action.owner, notes }],
+        effects: [{ type: 'acquire', owner: action.owner, notes, velocity }],
+      };
+    }
+    case 'press-note': {
+      if (state.active[action.owner]) return { state, effects: [] };
+      const note = clampMidiInteger(action.note, 0);
+      const velocity = clampMidiInteger(action.velocity, 1);
+      const notes = [note];
+      const name = midiNoteName(note);
+      const activeLiteral: ActiveLiteralNote = {
+        kind: 'literal',
+        owner: action.owner,
+        note,
+        velocity,
+        name,
+        roman: 'Passthrough',
+        notes,
+        noteNames: [name],
+      };
+      return {
+        state: { ...state, active: { ...state.active, [action.owner]: activeLiteral } },
+        effects: [{ type: 'acquire', owner: action.owner, notes, velocity }],
       };
     }
     case 'release': {

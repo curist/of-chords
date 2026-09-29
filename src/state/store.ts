@@ -1,7 +1,7 @@
 import { createInitialState, reduceInstrument, type InstrumentAction, type InstrumentEffect, type InstrumentState } from './instrument';
 
 export interface InstrumentEffectTarget {
-  acquire(owner: string, notes: readonly number[]): void;
+  acquire(owner: string, notes: readonly number[], velocity: number): void;
   release(owner: string): void;
   panic(): void;
   programChange(program: number): void;
@@ -40,7 +40,7 @@ export class InstrumentStore {
 
   #runEffect(effect: InstrumentEffect): void {
     switch (effect.type) {
-      case 'acquire': this.target.acquire(effect.owner, effect.notes); break;
+      case 'acquire': this.target.acquire(effect.owner, effect.notes, effect.velocity); break;
       case 'release': this.target.release(effect.owner); break;
       case 'program-change': this.target.programChange(effect.program); break;
       case 'panic': this.target.panic(); break;

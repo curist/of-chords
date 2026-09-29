@@ -23,14 +23,14 @@ export class NoteLedger {
     return this.#owners.size;
   }
 
-  acquire(owner: string, notes: readonly number[]): void {
+  acquire(owner: string, notes: readonly number[], velocity = 100): void {
     if (this.#owners.has(owner)) return;
     const uniqueNotes = [...new Set(notes)];
     this.#owners.set(owner, uniqueNotes);
     for (const note of uniqueNotes) {
       const count = this.#references.get(note) ?? 0;
       this.#references.set(note, count + 1);
-      if (count === 0) this.#attempt(() => this.sink.noteOn(note));
+      if (count === 0) this.#attempt(() => this.sink.noteOn(note, velocity));
     }
   }
 

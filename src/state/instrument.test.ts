@@ -4,7 +4,7 @@ import { InstrumentStore, type InstrumentEffectTarget } from './store';
 
 class RecordingTarget implements InstrumentEffectTarget {
   readonly events: string[] = [];
-  acquire(owner: string, notes: readonly number[]): void { this.events.push(`acquire:${owner}:${notes.join(',')}`); }
+  acquire(owner: string, notes: readonly number[], velocity: number): void { this.events.push(`acquire:${owner}:${notes.join(',')}:${velocity}`); }
   release(owner: string): void { this.events.push(`release:${owner}`); }
   panic(): void { this.events.push('panic'); }
   programChange(program: number): void { this.events.push(`program:${program}`); }
@@ -13,8 +13,56 @@ class RecordingTarget implements InstrumentEffectTarget {
 describe('instrument reducer and store', () => {
   it('turns a chord press into state and an explicit acquire effect', () => {
     const result = reduceInstrument(createInitialState(), { type: 'press', owner: 'keyboard:KeyA', degree: 1 });
-    expect(result.state.active['keyboard:KeyA']).toMatchObject({ name: 'C', roman: 'I', notes: [48, 52, 55] });
-    expect(result.effects).toEqual([{ type: 'acquire', owner: 'keyboard:KeyA', notes: [48, 52, 55] }]);
+    expect(result.state.active['keyboard:KeyA']).toMatchObject({ kind: 'chord', name: 'C', roman: 'I', notes: [48, 52, 55] });
+    expect(result.effects).toEqual([{ type: 'acquire', owner: 'keyboard:KeyA', notes: [48, 52, 55], velocity: 100 }]);
+  });
+
+  it('passes an explicit degree velocity to the acquire effect and store target', () => {
+    const target = new RecordingTarget();
+    const store = new InstrumentStore(target);
+    store.dispatch({ type: 'press', owner: 'midi:1', degree: 1, velocity: 37 });
+    expect(store.getState().active['midi:1']).toMatchObject({ kind: 'chord', notes: [48, 52, 55] });
+    expect(target.events).toEqual(['acquire:midi:1:48,52,55:37']);
+  });
+
+  it('records a literal note and omits it from chord history', () => {
+    const result = reduceInstrument(createInitialState(), { type: 'press-note', owner: 'midi:61', note: 61, velocity: 73 });
+    expect(result.state.active['midi:61']).toMatchObject({
+      kind: 'literal', note: 61, name: 'C#4', noteNames: ['C#4'], notes: [61], velocity: 73,
+    });
+    expect(result.effects).toEqual([{ type: 'acquire', owner: 'midi:61', notes: [61], velocity: 73 }]);
+    expect(result.state.history).toEqual([]);
+  });
+
+  it.each([
+    [{ type: 'press', owner: 'held', degree: 1, velocity: 37 }, [48, 52, 55]],
+    [{ type: 'press-note', owner: 'held', note: 61, velocity: 73 }, [61]],
+  ] as const)('keeps the pressed notes through settings changes until matching release', (press, notes) => {
+    let state = reduceInstrument(createInitialState(), press).state;
+    state = reduceInstrument(state, { type: 'set-tonic', tonic: 2 }).state;
+    state = reduceInstrument(state, { type: 'set-mode', mode: 'naturalMinor' }).state;
+    state = reduceInstrument(state, { type: 'set-shape', shape: 'seventh' }).state;
+    state = reduceInstrument(state, { type: 'set-inversion', inversion: 1 }).state;
+    expect(state.active.held.notes).toEqual(notes);
+    const released = reduceInstrument(state, { type: 'release', owner: 'held' });
+    expect(released.effects).toEqual([{ type: 'release', owner: 'held' }]);
+    expect(released.state.active.held).toBeUndefined();
+  });
+
+  it('ignores a duplicate literal press but accepts the same owner after panic', () => {
+    const first = reduceInstrument(createInitialState(), { type: 'press-note', owner: 'held', note: 61, velocity: 73 });
+    const duplicate = reduceInstrument(first.state, { type: 'press-note', owner: 'held', note: 62, velocity: 25 });
+    expect(duplicate.state).toBe(first.state);
+    expect(duplicate.effects).toEqual([]);
+    const cleared = reduceInstrument(duplicate.state, { type: 'panic' });
+    const pressedAgain = reduceInstrument(cleared.state, { type: 'press-note', owner: 'held', note: 61, velocity: 45 });
+    expect(pressedAgain.effects).toEqual([{ type: 'acquire', owner: 'held', notes: [61], velocity: 45 }]);
+  });
+
+  it('clamps literal notes and supplied velocities to MIDI integer ranges', () => {
+    const result = reduceInstrument(createInitialState(), { type: 'press-note', owner: 'held', note: 128.9, velocity: 0.9 });
+    expect(result.state.active.held).toMatchObject({ note: 127, name: 'G9', notes: [127], velocity: 1 });
+    expect(result.effects).toEqual([{ type: 'acquire', owner: 'held', notes: [127], velocity: 1 }]);
   });
 
   it('ignores repeat presses from an active owner', () => {
@@ -60,7 +108,7 @@ describe('instrument reducer and store', () => {
     ];
     actions.forEach((action) => store.dispatch(action));
     expect(target.events).toEqual([
-      'acquire:a:48,52,55', 'acquire:s:50,53,57', 'release:a', 'panic',
+      'acquire:a:48,52,55:100', 'acquire:s:50,53,57:100', 'release:a', 'panic',
     ]);
     expect(store.getState().active).toEqual({});
   });

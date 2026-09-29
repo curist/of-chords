@@ -2,8 +2,32 @@ import { describe, expect, it } from 'vitest';
 import type { ScaleDegree } from './chords';
 import { resolveChord } from './harmony';
 import { noteNames } from './notes';
-import type { Mode } from './scales';
+import { scaleDegreeForPitchClass, type Mode } from './scales';
 import { voiceChord } from './voicing';
+
+describe('scale degree lookup', () => {
+  it.each([
+    ['C', 0, 1], ['D', 2, 2], ['E', 4, 3], ['F', 5, 4],
+    ['G', 7, 5], ['A', 9, 6], ['B', 11, 7],
+  ] as const)('maps %s in C major to its scale degree', (_name, pitchClass, degree) => {
+    expect(scaleDegreeForPitchClass(0, 'major', pitchClass)).toBe(degree);
+  });
+
+  it.each([
+    ['D', 2, 1], ['E', 4, 2], ['F#', 6, 3], ['G', 7, 4],
+    ['A', 9, 5], ['B', 11, 6], ['C#', 1, 7],
+  ] as const)('maps %s in D major to its scale degree', (_name, pitchClass, degree) => {
+    expect(scaleDegreeForPitchClass(2, 'major', pitchClass)).toBe(degree);
+  });
+
+  it.each([[14, 1], [-10, 1], [26, 1]] as const)('normalizes octave-shifted pitch class %s', (pitchClass, degree) => {
+    expect(scaleDegreeForPitchClass(2, 'major', pitchClass)).toBe(degree);
+  });
+
+  it('returns null for F# outside C natural minor', () => {
+    expect(scaleDegreeForPitchClass(0, 'naturalMinor', 6)).toBeNull();
+  });
+});
 
 describe('major-key harmony', () => {
   it.each([
