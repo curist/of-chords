@@ -2,6 +2,7 @@ import './styles.css';
 import { WebAudioSynthSink } from './audio/synth';
 import { GamepadInput, type FrameScheduler, type GamepadEventTarget, type GamepadNavigator } from './input/gamepad';
 import { KeyboardInput, type KeyboardEventTarget } from './input/keyboard';
+import { WebMidiAccess } from './midi/midi-access';
 import { NoteLedger } from './midi/note-ledger';
 import { WebMidiOutputManager } from './midi/midi-output';
 import { OutputController } from './output/output-controller';
@@ -12,7 +13,8 @@ const root = document.querySelector<HTMLElement>('#app');
 if (!root) throw new Error('Missing #app root element.');
 
 const synth = new WebAudioSynthSink();
-const midi = new WebMidiOutputManager();
+const midiAccess = new WebMidiAccess();
+const midi = new WebMidiOutputManager(midiAccess);
 const output = new OutputController(synth, midi, { storage: safeLocalStorage() });
 const ledger = new NoteLedger(output);
 const store = new InstrumentStore({
@@ -29,7 +31,7 @@ midi.onDestinationWillChange(() => store.dispatch({ type: 'panic' }));
 midi.onDestinationDidChange(() => store.dispatch({ type: 'resend-program' }));
 
 const app = new App(root, store, midi, output, synth);
-if (output.mode === 'midi') void midi.restoreIfPermitted();
+if (output.mode === 'midi') void midiAccess.restoreIfPermitted();
 new KeyboardInput(window as unknown as KeyboardEventTarget, (action) => store.dispatch(action)).attach();
 new GamepadInput(
   window as unknown as GamepadEventTarget,
