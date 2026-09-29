@@ -24,19 +24,20 @@ export interface AbstractChord extends ChordIntent {
 function qualityFor(intervals: readonly number[], shape: ChordShape): ChordQuality {
   if (shape === 'sus2' || shape === 'sus4') return 'suspended';
   if (intervals[1] === 3 && intervals[2] === 6) return 'diminished';
+  if (intervals[1] === 4 && intervals[2] === 8) return 'augmented';
   return intervals[1] === 4 ? 'major' : 'minor';
 }
 
 function chordName(root: PitchClass, quality: ChordQuality, shape: ChordShape, intervals: readonly number[]): string {
   const rootName = noteName(root);
   if (shape === 'sus2' || shape === 'sus4') return `${rootName}${shape}`;
-  const triadSuffix = quality === 'minor' ? 'm' : quality === 'diminished' ? 'dim' : '';
+  const triadSuffix = quality === 'minor' ? 'm' : quality === 'diminished' ? 'dim' : quality === 'augmented' ? 'aug' : '';
   if (shape !== 'seventh') return `${rootName}${triadSuffix}`;
-  const seventhSuffix = intervals[3] === 11
-    ? 'maj7'
-    : quality === 'diminished'
+  const seventhSuffix = quality === 'diminished'
       ? intervals[3] === 9 ? 'dim7' : 'm7♭5'
-      : `${triadSuffix}7`;
+      : intervals[3] === 11
+        ? `${triadSuffix}maj7`
+        : `${triadSuffix}7`;
   return `${rootName}${seventhSuffix}`;
 }
 

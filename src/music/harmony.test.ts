@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import type { ScaleDegree } from './chords';
 import { resolveChord } from './harmony';
 import { noteNames } from './notes';
+import type { Mode } from './scales';
 import { voiceChord } from './voicing';
 
 describe('major-key harmony', () => {
@@ -108,6 +110,57 @@ describe('Mixolydian harmony', () => {
       shape: partial.shape,
       inversion: 0,
     });
+    expect(noteNames(chord.pitchClasses)).toEqual(names);
+    expect(chord.roman).toBe(roman);
+  });
+});
+
+describe('harmonic minor harmony', () => {
+  it.each([
+    ['A i', { degree: 1, shape: 'triad' }, ['A', 'C', 'E'], 'i', 'Am', 'minor'],
+    ['A minor-major seventh', { degree: 1, shape: 'seventh' }, ['A', 'C', 'E', 'G#'], 'imaj7', 'Ammaj7', 'minor'],
+    ['A III augmented', { degree: 3, shape: 'triad' }, ['C', 'E', 'G#'], 'III+', 'Caug', 'augmented'],
+    ['A V', { degree: 5, shape: 'triad' }, ['E', 'G#', 'B'], 'V', 'E', 'major'],
+    ['A vii diminished seventh', { degree: 7, shape: 'seventh' }, ['G#', 'B', 'D', 'F'], 'vii°7', 'G#dim7', 'diminished'],
+  ] as const)('%s resolves mode-aware harmony', (_label, partial, names, roman, name, quality) => {
+    const chord = resolveChord({
+      tonic: 9,
+      mode: 'harmonicMinor',
+      degree: partial.degree,
+      shape: partial.shape,
+      inversion: 0,
+    });
+    expect(noteNames(chord.pitchClasses)).toEqual(names);
+    expect(chord.roman).toBe(roman);
+    expect(chord.name).toBe(name);
+    expect(chord.quality).toBe(quality);
+  });
+});
+
+type ModalTriadCase = readonly [label: string, degree: ScaleDegree, names: readonly string[], roman: string];
+type ModalHarmonyCases = readonly [label: string, mode: Mode, tonic: number, cases: readonly ModalTriadCase[]];
+
+const MODAL_HARMONY_CASES: readonly ModalHarmonyCases[] = [
+  ['Phrygian', 'phrygian', 4, [
+    ['E i', 1, ['E', 'G', 'B'], 'i'],
+    ['E II', 2, ['F', 'A', 'C'], 'II'],
+    ['E v diminished', 5, ['B', 'D', 'F'], 'v°'],
+  ]],
+  ['Lydian', 'lydian', 0, [
+    ['C I', 1, ['C', 'E', 'G'], 'I'],
+    ['C II', 2, ['D', 'F#', 'A'], 'II'],
+    ['C iv diminished', 4, ['F#', 'A', 'C'], 'iv°'],
+  ]],
+  ['Locrian', 'locrian', 11, [
+    ['B i diminished', 1, ['B', 'D', 'F'], 'i°'],
+    ['B II', 2, ['C', 'E', 'G'], 'II'],
+    ['B V', 5, ['F', 'A', 'C'], 'V'],
+  ]],
+] as const;
+
+describe.each(MODAL_HARMONY_CASES)('%s harmony', (_label, mode, tonic, cases) => {
+  it.each(cases)('%s resolves mode-aware tones and numerals', (_caseLabel, degree, names, roman) => {
+    const chord = resolveChord({ tonic, mode, degree, shape: 'triad', inversion: 0 });
     expect(noteNames(chord.pitchClasses)).toEqual(names);
     expect(chord.roman).toBe(roman);
   });
