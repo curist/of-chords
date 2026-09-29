@@ -124,7 +124,7 @@ describe('WebMidiOutputManager failure boundaries', () => {
   });
 
   it('retains the preferred output identity while its port is disconnected', async () => {
-    const outputs: FakeOutput[] = [{ id: 'one', name: 'Synth', state: 'connected', send() {} }];
+    const outputs: FakeOutput[] = [{ id: 'one', name: 'Synth', manufacturer: 'Acme', state: 'connected', send() {} }];
     const stored = new Map<string, string>();
     const storage = {
       getItem(key: string) { return stored.get(key) ?? null; },
@@ -138,7 +138,15 @@ describe('WebMidiOutputManager failure boundaries', () => {
     outputs.splice(0, 1);
     browserAccess.onstatechange?.();
 
-    expect(manager.snapshot()).toMatchObject({ selectedOutputId: null, preferredOutputId: 'one' });
+    expect(manager.snapshot()).toMatchObject({
+      selectedOutputId: null, preferredOutputId: 'one', preferredOutputLabel: 'Synth · Acme',
+    });
+
+    const restored = new WebMidiOutputManager(fakeNavigator(fakeAccess([])), storage);
+    await restored.initialize();
+    expect(restored.snapshot()).toMatchObject({
+      selectedOutputId: null, preferredOutputId: 'one', preferredOutputLabel: 'Synth · Acme',
+    });
   });
 
   it('contains send failures and requests lifecycle cleanup', async () => {
@@ -206,7 +214,10 @@ describe('WebMidiOutputManager failure boundaries', () => {
 
     expect(manager.snapshot()).toMatchObject({ status: 'ready', selectedOutputId: null });
     expect(manager.snapshot().message).toContain('unavailable');
-    expect([...stored.values()]).toEqual(['one']);
+    expect(Object.fromEntries(stored)).toEqual({
+      'webchords.midi-output-id': 'one',
+      'webchords.midi-output-label': 'Synth',
+    });
 
     shouldThrow = false;
     access.onstatechange?.();

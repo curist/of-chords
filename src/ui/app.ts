@@ -342,7 +342,10 @@ export class App {
       output.id,
     ));
     if (snapshot.preferredOutputId && !snapshot.outputs.some((output) => output.id === snapshot.preferredOutputId)) {
-      outputOptions.push(new Option('Preferred output (disconnected)', snapshot.preferredOutputId));
+      outputOptions.push(new Option(
+        `${snapshot.preferredOutputLabel ?? snapshot.preferredOutputId} (disconnected)`,
+        snapshot.preferredOutputId,
+      ));
     }
     select.replaceChildren(emptyOption, ...outputOptions);
     select.value = snapshot.preferredOutputId ?? '';

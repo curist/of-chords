@@ -22,7 +22,7 @@ function createAppFixture() {
   const synth = new WebAudioSynthSink();
   const outputSnapshot = {
     status: 'idle', message: 'MIDI access has not been requested.', outputs: [],
-    selectedOutputId: null, preferredOutputId: null,
+    selectedOutputId: null, preferredOutputId: null, preferredOutputLabel: null,
   } satisfies MidiOutputSnapshot;
   let outputListener: (snapshot: MidiOutputSnapshot) => void = () => {};
   const midi = {
@@ -211,16 +211,16 @@ describe('MIDI output controls', () => {
     emitOutput({
       status: 'ready', message: 'Connected to Synth.',
       outputs: [{ id: 'synth', name: 'Synth', manufacturer: 'Acme', state: 'connected' }],
-      selectedOutputId: 'synth', preferredOutputId: 'synth',
+      selectedOutputId: 'synth', preferredOutputId: 'synth', preferredOutputLabel: 'Synth · Acme',
     });
     expect(select.selectedOptions[0].textContent).toBe('Synth · Acme (connected)');
 
     emitOutput({
       status: 'ready', message: 'MIDI ready. Select an output.', outputs: [],
-      selectedOutputId: null, preferredOutputId: 'synth',
+      selectedOutputId: null, preferredOutputId: 'synth', preferredOutputLabel: 'Synth · Acme',
     });
     expect(select.value).toBe('synth');
-    expect(select.selectedOptions[0].textContent).toBe('Preferred output (disconnected)');
+    expect(select.selectedOptions[0].textContent).toBe('Synth · Acme (disconnected)');
   });
 });
 

@@ -10,9 +10,11 @@ export interface MidiOutputSnapshot {
   readonly outputs: readonly MidiPortInfo[];
   readonly selectedOutputId: string | null;
   readonly preferredOutputId: string | null;
+  readonly preferredOutputLabel: string | null;
 }
 
 const STORAGE_KEY = 'webchords.midi-output-id';
+const LABEL_STORAGE_KEY = 'webchords.midi-output-label';
 
 export class WebMidiOutputManager implements NoteSink {
   #output: MidiOutputPortLike | null = null;
@@ -38,6 +40,7 @@ export class WebMidiOutputManager implements NoteSink {
       outputs: this.access.snapshot().outputs,
       selectedOutputId: this.#output?.id ?? null,
       preferredOutputId: this.#output?.id ?? this.#storageGet(),
+      preferredOutputLabel: this.#output ? this.#outputLabel(this.#output) : this.#storageGet(LABEL_STORAGE_KEY),
     };
   }
 
@@ -71,7 +74,7 @@ export class WebMidiOutputManager implements NoteSink {
     const nextOutput = id ? this.access.findOutput(id) : null;
     this.#changeOutput(nextOutput);
     if (this.#output) {
-      this.#storageSet(this.#output.id);
+      this.#storageSet(this.#output.id, this.#outputLabel(this.#output));
       this.#message = `Connected to ${this.#output.name ?? 'MIDI output'}.`;
     } else {
       this.#storageRemove();
@@ -148,16 +151,26 @@ export class WebMidiOutputManager implements NoteSink {
     }
   }
 
-  #storageGet(): string | null {
-    try { return this.storage?.getItem(STORAGE_KEY) ?? null; } catch { return null; }
+  #outputLabel(output: MidiOutputPortLike): string {
+    return `${output.name ?? 'Unnamed MIDI output'}${output.manufacturer ? ` · ${output.manufacturer}` : ''}`;
   }
 
-  #storageSet(id: string): void {
-    try { this.storage?.setItem(STORAGE_KEY, id); } catch { /* Preference storage is optional. */ }
+  #storageGet(key = STORAGE_KEY): string | null {
+    try { return this.storage?.getItem(key) ?? null; } catch { return null; }
+  }
+
+  #storageSet(id: string, label: string): void {
+    try {
+      this.storage?.setItem(STORAGE_KEY, id);
+      this.storage?.setItem(LABEL_STORAGE_KEY, label);
+    } catch { /* Preference storage is optional. */ }
   }
 
   #storageRemove(): void {
-    try { this.storage?.removeItem(STORAGE_KEY); } catch { /* Preference storage is optional. */ }
+    try {
+      this.storage?.removeItem(STORAGE_KEY);
+      this.storage?.removeItem(LABEL_STORAGE_KEY);
+    } catch { /* Preference storage is optional. */ }
   }
 
   #emit(): void {
