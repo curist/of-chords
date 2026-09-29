@@ -1,7 +1,7 @@
 import { scaleDegreeForPitchClass } from '../music/scales';
 import type { InstrumentAction, InstrumentState } from '../state/instrument';
 import { WebMidiAccess, type MidiAccessSnapshot, type MidiInputPortLike, type MidiPortInfo, type MidiStatus } from './midi-access';
-import { getOptionalStorage, type StorageLike } from './midi-output';
+import { getOptionalStorage, type StorageLike } from './storage';
 
 export interface MidiNoteMessage {
   readonly kind: 'on' | 'off';
@@ -192,6 +192,8 @@ export class WebMidiInputManager {
     if (this.#input) this.#input.onmidimessage = null;
     this.#input = null;
     this.#releaseCandidates();
+    // Panic is intentionally global: a feedback loop must silence every held note
+    // (keyboard/pointer/gamepad included), not only MIDI-owned gestures.
     try { this.dispatch({ type: 'panic' }); } catch { /* Keep the breaker active. */ }
     this.#status = 'suspended';
     this.#message = SUSPENDED_MESSAGE;

@@ -112,6 +112,7 @@ export class WebMidiAccess {
     void request.then((access) => {
       this.#access = access;
       access.onstatechange = () => this.#publish();
+      this.#initialization = null;
       this.#setStatus('ready', 'MIDI access granted. Select an output.');
       finishInitialization();
     }, (error: unknown) => {

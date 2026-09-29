@@ -1,11 +1,8 @@
 import type { NoteSink } from './note-ledger';
 import { WebMidiAccess, type MidiAccessSnapshot, type MidiOutputPortLike, type MidiPortInfo, type MidiStatus } from './midi-access';
+import { getOptionalStorage, type StorageLike } from './storage';
 
-export interface StorageLike {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-  removeItem(key: string): void;
-}
+export { getOptionalStorage, type StorageLike };
 
 export interface MidiOutputSnapshot {
   readonly status: MidiStatus;
@@ -15,14 +12,6 @@ export interface MidiOutputSnapshot {
 }
 
 const STORAGE_KEY = 'webchords.midi-output-id';
-
-export function getOptionalStorage(provider: () => StorageLike = () => localStorage): StorageLike | null {
-  try {
-    return provider();
-  } catch {
-    return null;
-  }
-}
 
 export class WebMidiOutputManager implements NoteSink {
   #output: MidiOutputPortLike | null = null;
