@@ -1,4 +1,5 @@
 import { normalizePitchClass, type PitchClass } from './notes';
+import type { ScaleDegree } from './chords';
 
 export type Mode =
   | 'major'
@@ -63,6 +64,12 @@ export const MODE_OPTIONS = (Object.entries(SCALES) as Array<[Mode, ScaleDefinit
   value,
   name: scale.name,
 }));
+
+export function scaleDegreeForPitchClass(tonic: PitchClass, mode: Mode, pitchClass: PitchClass): ScaleDegree | null {
+  const normalized = normalizePitchClass(pitchClass);
+  const index = SCALES[mode].intervals.findIndex((interval) => normalizePitchClass(tonic + interval) === normalized);
+  return index < 0 ? null : (index + 1) as ScaleDegree;
+}
 
 export function scaleTone(tonic: PitchClass, mode: Mode, zeroBasedDegree: number): number {
   const scale = SCALES[mode];

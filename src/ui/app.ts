@@ -6,9 +6,11 @@ import { resolveChord } from '../music/harmony';
 import { noteNames, TONIC_OPTIONS } from '../music/notes';
 import { MODE_OPTIONS, type Mode } from '../music/scales';
 import { voiceChord } from '../music/voicing';
+import type { WebMidiAccess } from '../midi/midi-access';
+import type { WebMidiInputManager, MidiInputSnapshot } from '../midi/midi-input';
 import type { WebMidiOutputManager, MidiOutputSnapshot } from '../midi/midi-output';
 import type { OutputController, OutputMode, OutputSnapshot } from '../output/output-controller';
-import type { InstrumentAction, InstrumentState } from '../state/instrument';
+import type { ActiveGesture, InstrumentAction, InstrumentState } from '../state/instrument';
 import type { InstrumentStore } from '../state/store';
 
 export function commitTonicSelection(
@@ -49,11 +51,19 @@ export function isOutputPanelVisible(panel: OutputMode, mode: OutputMode): boole
 
 export function activateOutputMode(
   mode: OutputMode,
-  midi: Pick<WebMidiOutputManager, 'initialize'>,
+  access: Pick<WebMidiAccess, 'initialize'>,
   output: Pick<OutputController, 'setMode'>,
 ): void {
-  if (mode === 'midi') void midi.initialize();
+  if (mode === 'midi') void access.initialize();
   output.setMode(mode);
+}
+
+export function activateMidiInput(input: Pick<WebMidiInputManager, 'selectInput'>, id: string | null): void {
+  input.selectInput(id);
+}
+
+export function resumeMidiInput(input: Pick<WebMidiInputManager, 'resume'>): void {
+  input.resume();
 }
 
 type ScheduleDismiss = (callback: () => void, delay: number) => number;
@@ -93,6 +103,7 @@ export class App {
   readonly #pointerOwners = new Map<number, string>();
   readonly #gamepadNotification: GamepadNotification;
   #latestMidi: MidiOutputSnapshot | null = null;
+  #latestInput: MidiInputSnapshot | null = null;
   #mode: OutputMode = 'builtin';
 
   constructor(
@@ -101,6 +112,8 @@ export class App {
     private readonly midi: WebMidiOutputManager,
     private readonly output: OutputController,
     private readonly synth: WebAudioSynthSink,
+    private readonly midiInput: WebMidiInputManager,
+    private readonly midiAccess: Pick<WebMidiAccess, 'initialize'>,
   ) {
     this.#renderShell();
     this.#gamepadNotification = new GamepadNotification(
@@ -109,6 +122,7 @@ export class App {
     this.#bindControls();
     this.store.subscribe((state) => this.#renderInstrument(state));
     this.midi.subscribe((snapshot) => this.#renderMidi(snapshot));
+    this.midiInput.subscribe((snapshot) => this.#renderMidiInput(snapshot));
     this.output.subscribe((snapshot) => this.#renderOutput(snapshot));
   }
 
@@ -160,7 +174,7 @@ export class App {
         <section class="readout-grid">
           <article class="panel now" aria-live="polite">
             <p class="section-label">Currently sounding</p>
-            <div id="currently-sounding" class="empty-state">Press a chord key</div>
+            <div id="currently-sounding" class="empty-state">Play a chord</div>
           </article>
           <article class="panel history">
             <p class="section-label">Recent progression</p>
@@ -185,6 +199,13 @@ export class App {
               <label>Program<input id="program-input" type="number" min="1" max="128" placeholder="—"></label>
               <button id="next-program" aria-label="Next MIDI program"><span>→</span><kbd>]</kbd></button>
             </div>
+          </div>
+          <div class="output-input">
+            <div class="output-input-controls">
+              <label>MIDI Input<select id="midi-input"><option value="">No input</option></select></label>
+              <button id="midi-input-action" type="button">Connect input</button>
+            </div>
+            <p id="midi-input-message" role="status" aria-live="polite"></p>
           </div>
         </section>
         ${SHOW_VOICE_TUNING ? this.#renderDevPanelMarkup() : ''}
@@ -248,7 +269,14 @@ export class App {
     this.root.querySelector('#chord-grid')?.addEventListener('pointercancel', releasePointer);
     this.root.querySelector('#output-mode')?.addEventListener('click', (event) => {
       const button = (event.target as Element).closest<HTMLButtonElement>('[data-output]');
-      if (button) activateOutputMode(button.dataset.output as OutputMode, this.midi, this.output);
+      if (button) activateOutputMode(button.dataset.output as OutputMode, this.midiAccess, this.output);
+    });
+    this.root.querySelector<HTMLSelectElement>('#midi-input')?.addEventListener('change', (event) => {
+      activateMidiInput(this.midiInput, (event.target as HTMLSelectElement).value || null);
+    });
+    this.root.querySelector<HTMLButtonElement>('#midi-input-action')?.addEventListener('click', () => {
+      if (this.#latestInput?.status === 'suspended') resumeMidiInput(this.midiInput);
+      else void this.midiAccess.initialize();
     });
     this.root.querySelector<HTMLSelectElement>('#midi-output')?.addEventListener('change', (event) => {
       this.midi.selectOutput((event.target as HTMLSelectElement).value || null);
@@ -270,7 +298,9 @@ export class App {
     this.root.querySelectorAll<HTMLButtonElement>('[data-shape]').forEach((button) => button.classList.toggle('selected', button.dataset.shape === state.shape));
     this.root.querySelectorAll<HTMLButtonElement>('[data-inversion]').forEach((button) => button.classList.toggle('selected', Number(button.dataset.inversion) === state.inversion));
 
-    const activeDegrees = new Set(Object.values(state.active).map((chord) => chord.degree));
+    const activeDegrees = new Set(Object.values(state.active)
+      .filter((gesture) => gesture.kind === 'chord')
+      .map((chord) => chord.degree));
     this.root.querySelectorAll<HTMLButtonElement>('.chord-pad').forEach((button) => {
       const degree = Number(button.dataset.degree) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
       const chord = resolveChord({ tonic: state.tonic, mode: state.mode, degree, shape: state.shape, inversion: state.inversion });
@@ -286,8 +316,7 @@ export class App {
     const active = Object.values(state.active);
     const current = this.root.querySelector<HTMLElement>('#currently-sounding')!;
     current.classList.toggle('empty-state', active.length === 0);
-    current.innerHTML = active.length === 0 ? 'Press a chord key' : active.map((chord) => `
-      <div class="sounding-chord"><div><strong>${chord.name}</strong><span>${chord.roman}</span></div><p>${chord.noteNames.join(' &nbsp; ')}<small>MIDI ${chord.notes.join(' · ')}</small></p></div>`).join('');
+    current.innerHTML = active.length === 0 ? 'Play a chord' : active.map((gesture) => this.#renderGesture(gesture)).join('');
 
     const historyNames = this.root.querySelector<HTMLElement>('#history-names')!;
     historyNames.classList.toggle('empty-state', state.history.length === 0);
@@ -296,6 +325,13 @@ export class App {
 
     const programInput = this.root.querySelector<HTMLInputElement>('#program-input')!;
     programInput.value = state.program === null ? '' : String(state.program + 1);
+  }
+
+  #renderGesture(gesture: ActiveGesture): string {
+    if (gesture.kind === 'literal') {
+      return `<div class="sounding-chord"><div><strong>${gesture.name}</strong><span>Passthrough</span></div><p><small>MIDI ${gesture.note}</small></p></div>`;
+    }
+    return `<div class="sounding-chord"><div><strong>${gesture.name}</strong><span>${gesture.roman}</span></div><p>${gesture.noteNames.join(' &nbsp; ')}<small>MIDI ${gesture.notes.join(' · ')}</small></p></div>`;
   }
 
   #renderMidi(snapshot: MidiOutputSnapshot): void {
@@ -310,6 +346,29 @@ export class App {
     select.value = snapshot.selectedOutputId ?? '';
     select.disabled = snapshot.status !== 'ready' || snapshot.outputs.length === 0;
     this.#renderStatus();
+  }
+
+  #renderMidiInput(snapshot: MidiInputSnapshot): void {
+    this.#latestInput = snapshot;
+    const select = this.root.querySelector<HTMLSelectElement>('#midi-input')!;
+    const emptyOption = new Option('No input', '');
+    const inputOptions = snapshot.inputs.map((input) => new Option(
+      `${input.name}${input.manufacturer ? ` · ${input.manufacturer}` : ''}${input.id === snapshot.attachedInputId ? ' (connected)' : ''}`,
+      input.id,
+    ));
+    if (snapshot.preferredInputId && !snapshot.inputs.some((input) => input.id === snapshot.preferredInputId)) {
+      inputOptions.push(new Option('Preferred input (disconnected)', snapshot.preferredInputId));
+    }
+    select.replaceChildren(emptyOption, ...inputOptions);
+    select.value = snapshot.preferredInputId ?? '';
+    select.disabled = (snapshot.status !== 'ready' && snapshot.status !== 'disconnected')
+      || (snapshot.inputs.length === 0 && snapshot.preferredInputId === null);
+
+    const action = this.root.querySelector<HTMLButtonElement>('#midi-input-action')!;
+    action.hidden = snapshot.status === 'ready' || snapshot.status === 'disconnected'
+      || snapshot.status === 'requesting' || snapshot.status === 'unsupported';
+    action.textContent = snapshot.status === 'suspended' ? 'Resume input' : 'Connect input';
+    this.root.querySelector<HTMLElement>('#midi-input-message')!.textContent = snapshot.message;
   }
 
   #renderOutput(snapshot: OutputSnapshot): void {

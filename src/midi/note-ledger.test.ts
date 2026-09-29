@@ -3,7 +3,7 @@ import { NoteLedger, type MidiNoteSink } from './note-ledger';
 
 class RecordingSink implements MidiNoteSink {
   readonly events: string[] = [];
-  noteOn(note: number): void { this.events.push(`on:${note}`); }
+  noteOn(note: number, velocity?: number): void { this.events.push(`on:${note}:${velocity}`); }
   noteOff(note: number): void { this.events.push(`off:${note}`); }
   allNotesOff(): void { this.events.push('all-off'); }
 }
@@ -15,7 +15,7 @@ describe('NoteLedger', () => {
     ledger.acquire('one', [48, 52, 55]);
     ledger.acquire('two', [55, 59, 62]);
     ledger.release('one');
-    expect(sink.events).toEqual(['on:48', 'on:52', 'on:55', 'on:59', 'on:62', 'off:48', 'off:52']);
+    expect(sink.events).toEqual(['on:48:100', 'on:52:100', 'on:55:100', 'on:59:100', 'on:62:100', 'off:48', 'off:52']);
     ledger.release('two');
     expect(sink.events.slice(-3)).toEqual(['off:55', 'off:59', 'off:62']);
   });
@@ -26,7 +26,20 @@ describe('NoteLedger', () => {
     ledger.acquire('keyboard:a', [48, 52, 55]);
     ledger.acquire('keyboard:a', [48, 52, 55]);
     ledger.release('keyboard:a');
-    expect(sink.events).toEqual(['on:48', 'on:52', 'on:55', 'off:48', 'off:52', 'off:55']);
+    expect(sink.events).toEqual(['on:48:100', 'on:52:100', 'on:55:100', 'off:48', 'off:52', 'off:55']);
+  });
+
+  it('uses the first owner velocity for shared notes and a fresh velocity after final release', () => {
+    const sink = new RecordingSink();
+    const ledger = new NoteLedger(sink);
+    ledger.acquire('first', [61], 73);
+    ledger.acquire('shared', [61], 28);
+    expect(sink.events).toEqual(['on:61:73']);
+    ledger.release('first');
+    expect(sink.events).toEqual(['on:61:73']);
+    ledger.release('shared');
+    ledger.acquire('later', [61], 45);
+    expect(sink.events).toEqual(['on:61:73', 'off:61', 'on:61:45']);
   });
 
   it('panic releases tracked notes once and sends all notes off', () => {
@@ -36,7 +49,7 @@ describe('NoteLedger', () => {
     ledger.acquire('two', [55, 59]);
     ledger.panic();
     expect(sink.events).toEqual([
-      'on:48', 'on:52', 'on:55', 'on:59',
+      'on:48:100', 'on:52:100', 'on:55:100', 'on:59:100',
       'off:48', 'off:52', 'off:55', 'off:59', 'all-off',
     ]);
     expect(ledger.activeOwnerCount).toBe(0);

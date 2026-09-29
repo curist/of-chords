@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { WebMidiAccess } from './midi-access';
 import { getOptionalStorage, WebMidiOutputManager } from './midi-output';
 
 interface FakeOutput {
@@ -12,6 +13,7 @@ interface FakeOutput {
 function fakeAccess(outputs: FakeOutput[]) {
   const access = {
     onstatechange: null as (() => void) | null,
+    inputs: { forEach() {} },
     outputs: {
       forEach(callback: (output: FakeOutput) => void) { outputs.forEach(callback); },
     },
@@ -20,17 +22,17 @@ function fakeAccess(outputs: FakeOutput[]) {
 }
 
 function fakeNavigator(access: ReturnType<typeof fakeAccess>) {
-  return { requestMIDIAccess: async () => access };
+  return new WebMidiAccess({ requestMIDIAccess: async () => access });
 }
 
 describe('WebMidiOutputManager failure boundaries', () => {
   it('restores MIDI automatically when permission was already granted', async () => {
     const access = fakeAccess([]);
     let requests = 0;
-    const manager = new WebMidiOutputManager({
+    const manager = new WebMidiOutputManager(new WebMidiAccess({
       permissions: { query: async () => ({ state: 'granted' as const }) },
       requestMIDIAccess: async () => { requests += 1; return access; },
-    }, null);
+    }), null);
 
     await (manager as unknown as { restoreIfPermitted?: () => Promise<void> }).restoreIfPermitted?.();
 
@@ -40,10 +42,10 @@ describe('WebMidiOutputManager failure boundaries', () => {
 
   it('waits for a tap when MIDI permission still needs a prompt', async () => {
     let requests = 0;
-    const manager = new WebMidiOutputManager({
+    const manager = new WebMidiOutputManager(new WebMidiAccess({
       permissions: { query: async () => ({ state: 'prompt' as const }) },
       requestMIDIAccess: async () => { requests += 1; return fakeAccess([]); },
-    }, null);
+    }), null);
 
     await (manager as unknown as { restoreIfPermitted?: () => Promise<void> }).restoreIfPermitted?.();
 
@@ -57,10 +59,10 @@ describe('WebMidiOutputManager failure boundaries', () => {
   it('does not overwrite a connection made while permission status is loading', async () => {
     let finishQuery!: (status: { state: 'prompt' }) => void;
     const query = new Promise<{ state: 'prompt' }>((resolve) => { finishQuery = resolve; });
-    const manager = new WebMidiOutputManager({
+    const manager = new WebMidiOutputManager(new WebMidiAccess({
       permissions: { query: async () => query },
       requestMIDIAccess: async () => fakeAccess([]),
-    }, null);
+    }), null);
 
     const restoring = (manager as unknown as { restoreIfPermitted: () => Promise<void> }).restoreIfPermitted();
     await manager.initialize();
@@ -71,9 +73,9 @@ describe('WebMidiOutputManager failure boundaries', () => {
   });
 
   it('reports modern permission rejection as denied', async () => {
-    const manager = new WebMidiOutputManager({
+    const manager = new WebMidiOutputManager(new WebMidiAccess({
       requestMIDIAccess: async () => { throw new DOMException('not allowed', 'NotAllowedError'); },
-    }, null);
+    }), null);
 
     await manager.initialize();
 
@@ -86,9 +88,9 @@ describe('WebMidiOutputManager failure boundaries', () => {
   it('does not request MIDI access again once ready', async () => {
     const access = fakeAccess([]);
     let requests = 0;
-    const manager = new WebMidiOutputManager({
+    const manager = new WebMidiOutputManager(new WebMidiAccess({
       requestMIDIAccess: async () => { requests += 1; return access; },
-    }, null);
+    }), null);
 
     await manager.initialize();
     await manager.initialize();
@@ -193,5 +195,27 @@ describe('WebMidiOutputManager failure boundaries', () => {
     await Promise.resolve();
     expect(manager.snapshot()).toMatchObject({ status: 'ready', selectedOutputId: 'one' });
     expect(messages).toEqual([[0xc0, 0]]);
+  });
+
+  it('keeps sending and refreshing output after an unrelated access listener unsubscribes', async () => {
+    const messages: number[][] = [];
+    const first = { id: 'one', name: 'First', state: 'connected' as const, send(data: number[]) { messages.push(data); } };
+    const second = { id: 'two', name: 'Second', state: 'connected' as const, send(data: number[]) { messages.push(data); } };
+    const outputs: FakeOutput[] = [first];
+    const browserAccess = fakeAccess(outputs);
+    const access = fakeNavigator(browserAccess);
+    const manager = new WebMidiOutputManager(access, null);
+    const unsubscribe = access.subscribe(() => {});
+    await access.initialize();
+    manager.selectOutput('one');
+
+    unsubscribe();
+    manager.noteOn(60);
+    outputs[0] = second;
+    browserAccess.onstatechange?.();
+    expect(manager.snapshot().outputs.map((port) => port.id)).toEqual(['two']);
+    manager.selectOutput('two');
+    manager.noteOn(62);
+    expect(messages).toEqual([[0x90, 60, 100], [0x90, 62, 100]]);
   });
 });

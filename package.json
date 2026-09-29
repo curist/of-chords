@@ -11,6 +11,7 @@
     "typecheck": "tsc -b --pretty false"
   },
   "devDependencies": {
+    "happy-dom": "^20.14.5",
     "typescript": "^5.9.2",
     "vite": "^7.1.7",
     "vitest": "^3.2.4"

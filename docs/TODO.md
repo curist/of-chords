@@ -7,7 +7,7 @@ This file tracks work intentionally deferred beyond the first playable MVP. It i
 - [ ] Compare modifier semantics: snapshot on chord press versus live re-voicing of held chords.
 - [ ] Add an optional nearest-voicing strategy while preserving the current deterministic close voicing.
 - [ ] Try momentary keyboard bindings for 7th, sus2, sus4, and inversions; keep mappings configurable.
-- [ ] Add optional Web MIDI input as another adapter that dispatches instrument actions.
+- [x] Add optional Web MIDI input as another adapter that dispatches instrument actions.
 - [ ] Explore an Android/gamepad input adapter without changing the harmony engine.
 
 ## Musical range

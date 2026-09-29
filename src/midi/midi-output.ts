@@ -1,48 +1,16 @@
 import type { NoteSink } from './note-ledger';
+import { WebMidiAccess, type MidiAccessSnapshot, type MidiOutputPortLike, type MidiPortInfo, type MidiStatus } from './midi-access';
 
-interface MidiPortLike {
-  readonly id: string;
-  readonly name: string | null;
-  readonly manufacturer?: string | null;
-  readonly state: 'connected' | 'disconnected';
-  send(data: number[]): void;
-}
-
-interface MidiOutputMapLike {
-  forEach(callback: (output: MidiPortLike) => void): void;
-}
-
-interface MidiAccessLike {
-  readonly outputs: MidiOutputMapLike;
-  onstatechange: (() => void) | null;
-}
-
-interface MidiNavigator {
-  requestMIDIAccess?: () => Promise<MidiAccessLike>;
-  permissions?: {
-    query(descriptor: { name: 'midi'; sysex: false }): Promise<{ state: 'granted' | 'denied' | 'prompt' }>;
-  };
-}
-
-interface StorageLike {
+export interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
   removeItem(key: string): void;
 }
 
-export interface MidiOutputInfo {
-  readonly id: string;
-  readonly name: string;
-  readonly manufacturer: string;
-  readonly state: 'connected' | 'disconnected';
-}
-
-export type MidiStatus = 'idle' | 'requesting' | 'ready' | 'unsupported' | 'denied' | 'error';
-
 export interface MidiOutputSnapshot {
   readonly status: MidiStatus;
   readonly message: string;
-  readonly outputs: readonly MidiOutputInfo[];
+  readonly outputs: readonly MidiPortInfo[];
   readonly selectedOutputId: string | null;
 }
 
@@ -57,35 +25,27 @@ export function getOptionalStorage(provider: () => StorageLike = () => localStor
 }
 
 export class WebMidiOutputManager implements NoteSink {
-  #access: MidiAccessLike | null = null;
-  #output: MidiPortLike | null = null;
+  #output: MidiOutputPortLike | null = null;
   #status: MidiStatus = 'idle';
   #message = 'MIDI access has not been requested.';
   #destinationWillChange: (() => void) | null = null;
   #destinationDidChange: (() => void) | null = null;
   #cleanupScheduled = false;
   readonly #listeners = new Set<(snapshot: MidiOutputSnapshot) => void>();
+  readonly #unsubscribeAccess: () => void;
 
   constructor(
-    private readonly browserNavigator: MidiNavigator = navigator as MidiNavigator,
+    private readonly access: WebMidiAccess,
     private readonly storage: StorageLike | null = getOptionalStorage(),
-  ) {}
+  ) {
+    this.#unsubscribeAccess = access.subscribe((snapshot) => this.#onAccessSnapshot(snapshot));
+  }
 
   snapshot(): MidiOutputSnapshot {
-    const outputs: MidiOutputInfo[] = [];
-    this.#access?.outputs.forEach((output) => {
-      if (output.state !== 'connected') return;
-      outputs.push({
-        id: output.id,
-        name: output.name ?? 'Unnamed MIDI output',
-        manufacturer: output.manufacturer ?? '',
-        state: output.state,
-      });
-    });
     return {
       status: this.#status,
       message: this.#message,
-      outputs,
+      outputs: this.access.snapshot().outputs,
       selectedOutputId: this.#output?.id ?? null,
     };
   }
@@ -104,52 +64,27 @@ export class WebMidiOutputManager implements NoteSink {
     this.#destinationDidChange = listener;
   }
 
-  async restoreIfPermitted(): Promise<void> {
-    if (!this.browserNavigator.requestMIDIAccess) {
-      await this.initialize();
-      return;
-    }
-    try {
-      const permission = await this.browserNavigator.permissions?.query({ name: 'midi', sysex: false });
-      if (permission?.state === 'granted') {
-        await this.initialize();
-        return;
-      }
-    } catch {
-      // Permission queries are not consistently supported across browsers.
-    }
-    if (this.#status === 'idle') this.#setStatus('idle', 'Tap MIDI to connect.');
+  restoreIfPermitted(): Promise<void> {
+    return this.access.restoreIfPermitted();
   }
 
-  async initialize(): Promise<void> {
-    if (!this.browserNavigator.requestMIDIAccess) {
-      this.#setStatus('unsupported', 'Web MIDI is not supported in this browser. Try Chrome or Edge.');
-      return;
-    }
-    if (this.#status === 'requesting' || this.#status === 'ready') return;
-    this.#setStatus('requesting', 'Requesting MIDI access…');
-    try {
-      const access = await this.browserNavigator.requestMIDIAccess();
-      this.#access = access;
-      access.onstatechange = () => this.#refreshSelection();
-      this.#setStatus('ready', 'MIDI access granted. Select an output.');
-      this.#refreshSelection();
-    } catch (error) {
-      const denied = error instanceof DOMException
-        && (error.name === 'SecurityError' || error.name === 'NotAllowedError');
-      this.#setStatus(denied ? 'denied' : 'error', denied ? 'MIDI access was denied.' : 'Could not access MIDI devices.');
-    }
+  initialize(): Promise<void> {
+    return this.access.initialize();
+  }
+
+  dispose(): void {
+    this.#unsubscribeAccess();
   }
 
   selectOutput(id: string | null): void {
-    const nextOutput = id && this.#access ? this.#findOutput(id) : null;
+    const nextOutput = id ? this.access.findOutput(id) : null;
     this.#changeOutput(nextOutput);
     if (this.#output) {
       this.#storageSet(this.#output.id);
       this.#message = `Connected to ${this.#output.name ?? 'MIDI output'}.`;
     } else {
       this.#storageRemove();
-      this.#message = this.#access ? 'No MIDI output selected.' : this.#message;
+      this.#message = this.#status === 'ready' ? 'No MIDI output selected.' : this.#message;
     }
     this.#emit();
   }
@@ -171,35 +106,28 @@ export class WebMidiOutputManager implements NoteSink {
     this.#send([0xc0, program]);
   }
 
-  #refreshSelection(): void {
-    if (!this.#access) return;
+  #onAccessSnapshot(snapshot: MidiAccessSnapshot): void {
+    this.#status = snapshot.status;
+    this.#message = snapshot.message;
+    if (snapshot.status === 'ready') {
+      this.#refreshSelection(snapshot);
+    } else {
+      this.#emit();
+    }
+  }
+
+  #refreshSelection(snapshot: MidiAccessSnapshot): void {
     const remembered = this.#storageGet();
     const selectedId = this.#output?.id ?? remembered;
-    const nextOutput = selectedId ? this.#findOutput(selectedId) : null;
+    const nextOutput = selectedId ? this.access.findOutput(selectedId) : null;
     this.#changeOutput(nextOutput);
-    let count = 0;
-    this.#access.outputs.forEach((output) => { if (output.state === 'connected') count += 1; });
     this.#message = this.#output
       ? `Connected to ${this.#output.name ?? 'MIDI output'}.`
-      : count === 0 ? 'No MIDI outputs found.' : 'MIDI ready. Select an output.';
+      : snapshot.outputs.length === 0 ? 'No MIDI outputs found.' : 'MIDI ready. Select an output.';
     this.#emit();
   }
 
-  #setStatus(status: MidiStatus, message: string): void {
-    this.#status = status;
-    this.#message = message;
-    this.#emit();
-  }
-
-  #findOutput(id: string): MidiPortLike | null {
-    let found: MidiPortLike | null = null;
-    this.#access?.outputs.forEach((output) => {
-      if (output.id === id && output.state === 'connected') found = output;
-    });
-    return found;
-  }
-
-  #changeOutput(nextOutput: MidiPortLike | null): void {
+  #changeOutput(nextOutput: MidiOutputPortLike | null): void {
     const changed = this.#output !== nextOutput;
     if (this.#output && changed) this.#destinationWillChange?.();
     this.#output = nextOutput;
