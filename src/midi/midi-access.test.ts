@@ -37,6 +37,25 @@ describe('WebMidiAccess', () => {
     expect(access.snapshot().status).toBe('ready');
   });
 
+  it('reuses the pending request when a requesting subscriber initializes again', async () => {
+    let requests = 0;
+    const access = new WebMidiAccess({ requestMIDIAccess: async () => { requests++; return fakeAccess(); } });
+    let reentrant: Promise<void> | undefined;
+    let didReenter = false;
+    access.subscribe((snapshot) => {
+      if (snapshot.status === 'requesting' && !didReenter) {
+        didReenter = true;
+        reentrant = access.initialize();
+      }
+    });
+
+    const first = access.initialize();
+    expect(reentrant).toBe(first);
+    await first;
+    expect(requests).toBe(1);
+    expect(access.snapshot().status).toBe('ready');
+  });
+
   it('reports a denied request and allows a later explicit retry', async () => {
     let requests = 0;
     const access = new WebMidiAccess({ requestMIDIAccess: async () => {
@@ -148,5 +167,26 @@ describe('WebMidiAccess', () => {
     expect(seenByFirst.at(-1)).toEqual(['one']);
     expect(seenBySecond.at(-1)).toEqual(['two']);
     expect(access.findOutput('two')).toBe(outputs[0]);
+  });
+
+  it('isolates a throwing subscriber during initialization and port changes', async () => {
+    const outputs = [output('one')];
+    const browserAccess = fakeAccess([], outputs);
+    const access = new WebMidiAccess({ requestMIDIAccess: async () => browserAccess });
+    const seen: string[][] = [];
+    access.subscribe((snapshot) => {
+      if (snapshot.status === 'ready') throw new Error('broken subscriber');
+    });
+    access.subscribe((snapshot) => {
+      if (snapshot.status === 'ready') seen.push(snapshot.outputs.map((port) => port.id));
+    });
+
+    await access.initialize();
+    expect(access.snapshot().status).toBe('ready');
+    expect(seen).toEqual([['one']]);
+    outputs[0] = output('two');
+    expect(() => browserAccess.onstatechange?.()).not.toThrow();
+    expect(access.snapshot().outputs.map((port) => port.id)).toEqual(['two']);
+    expect(seen).toEqual([['one'], ['two']]);
   });
 });

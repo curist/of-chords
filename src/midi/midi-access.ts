@@ -64,7 +64,7 @@ export class WebMidiAccess {
 
   subscribe(listener: (snapshot: MidiAccessSnapshot) => void): () => void {
     this.#listeners.add(listener);
-    listener(this.#snapshot);
+    this.#notify(listener, this.#snapshot);
     return () => { this.#listeners.delete(listener); };
   }
 
@@ -100,6 +100,8 @@ export class WebMidiAccess {
       this.#setStatus('unsupported', 'Web MIDI is not supported in this browser. Try Chrome or Edge.');
       return Promise.resolve();
     }
+    let finishInitialization!: () => void;
+    this.#initialization = new Promise<void>((resolve) => { finishInitialization = resolve; });
     this.#setStatus('requesting', 'Requesting MIDI access…');
     let request: Promise<MidiAccessLike>;
     try {
@@ -107,15 +109,17 @@ export class WebMidiAccess {
     } catch (error) {
       request = Promise.reject(error);
     }
-    this.#initialization = request.then((access) => {
+    void request.then((access) => {
       this.#access = access;
       access.onstatechange = () => this.#publish();
       this.#setStatus('ready', 'MIDI access granted. Select an output.');
-    }).catch((error: unknown) => {
+      finishInitialization();
+    }, (error: unknown) => {
       const denied = error instanceof DOMException
         && (error.name === 'SecurityError' || error.name === 'NotAllowedError');
       this.#initialization = null;
       this.#setStatus(denied ? 'denied' : 'error', denied ? 'MIDI access was denied.' : 'Could not access MIDI devices.');
+      finishInitialization();
     });
     return this.#initialization;
   }
@@ -143,7 +147,15 @@ export class WebMidiAccess {
       inputs: Object.freeze(inputs),
       outputs: Object.freeze(outputs),
     });
-    for (const listener of this.#listeners) listener(this.#snapshot);
+    for (const listener of this.#listeners) this.#notify(listener, this.#snapshot);
+  }
+
+  #notify(listener: (snapshot: MidiAccessSnapshot) => void, snapshot: MidiAccessSnapshot): void {
+    try {
+      listener(snapshot);
+    } catch {
+      // A consumer callback must not interrupt access or other consumers.
+    }
   }
 
   #addConnected(ports: MidiPortInfo[], port: MidiPortLike, direction: 'input' | 'output'): void {
