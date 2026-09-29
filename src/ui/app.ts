@@ -192,20 +192,19 @@ export class App {
             <button id="panic" class="panic" data-output-panel="midi">Panic · All Notes Off</button>
           </div>
 
-          <div class="output-midi" data-output-panel="midi">
-            <label>MIDI Output<select id="midi-output"><option value="">No output selected</option></select></label>
-            <div class="program-controls">
-              <button id="previous-program" aria-label="Previous MIDI program"><span>←</span><kbd>[</kbd></button>
-              <label>Program<input id="program-input" type="number" min="1" max="128" placeholder="—"></label>
-              <button id="next-program" aria-label="Next MIDI program"><span>→</span><kbd>]</kbd></button>
+          <div class="output-midi">
+            <div class="midi-device-controls">
+              <div class="output-input-controls">
+                <label>MIDI Input<select id="midi-input"><option value="">No input</option></select></label>
+                <button id="midi-input-action" type="button">Connect input</button>
+              </div>
+              <label data-output-panel="midi">MIDI Output<select id="midi-output"><option value="">No output selected</option></select></label>
+              <div class="program-controls" data-output-panel="midi">
+                <button id="previous-program" aria-label="Previous MIDI program"><span>←</span><kbd>[</kbd></button>
+                <label>Program<input id="program-input" type="number" min="1" max="128" placeholder="—"></label>
+                <button id="next-program" aria-label="Next MIDI program"><span>→</span><kbd>]</kbd></button>
+              </div>
             </div>
-          </div>
-          <div class="output-input">
-            <div class="output-input-controls">
-              <label>MIDI Input<select id="midi-input"><option value="">No input</option></select></label>
-              <button id="midi-input-action" type="button">Connect input</button>
-            </div>
-            <p id="midi-input-message" role="status" aria-live="polite"></p>
           </div>
         </section>
         ${SHOW_VOICE_TUNING ? this.#renderDevPanelMarkup() : ''}
@@ -368,11 +367,11 @@ export class App {
     action.hidden = snapshot.status === 'ready' || snapshot.status === 'disconnected'
       || snapshot.status === 'requesting' || snapshot.status === 'unsupported';
     action.textContent = snapshot.status === 'suspended' ? 'Resume input' : 'Connect input';
-    this.root.querySelector<HTMLElement>('#midi-input-message')!.textContent = snapshot.message;
   }
 
   #renderOutput(snapshot: OutputSnapshot): void {
     this.#mode = snapshot.mode;
+    this.root.querySelector<HTMLElement>('.midi-device-controls')!.dataset.outputMode = snapshot.mode;
     this.root.querySelectorAll<HTMLButtonElement>('[data-output]').forEach((button) => {
       button.classList.toggle('selected', button.dataset.output === snapshot.mode);
     });

@@ -125,26 +125,33 @@ describe('MIDI input controls', () => {
   it('keeps input controls visible across output modes while output controls follow MIDI mode', () => {
     const { root, output } = createAppFixture();
     const input = root.querySelector<HTMLSelectElement>('#midi-input');
-    const message = root.querySelector<HTMLElement>('#midi-input-message');
-    const midiOutput = root.querySelector<HTMLElement>('.output-midi');
+    const midiOutput = root.querySelector<HTMLSelectElement>('#midi-output');
     const panic = root.querySelector<HTMLElement>('#panic');
 
     expect(input).not.toBeNull();
-    expect(message).not.toBeNull();
+    expect(root.querySelector('#midi-input-message')).toBeNull();
     expect(input?.closest('[hidden]')).toBeNull();
-    expect(midiOutput?.hidden).toBe(true);
+    expect(midiOutput?.closest('[hidden]')).not.toBeNull();
     expect(panic?.hidden).toBe(true);
 
     output.setMode('midi');
     expect(input?.closest('[hidden]')).toBeNull();
-    expect(midiOutput?.hidden).toBe(false);
+    expect(midiOutput?.closest('[hidden]')).toBeNull();
     expect(panic?.hidden).toBe(false);
+  });
+
+  it('places MIDI input, MIDI output, and program controls in that order in one row', () => {
+    const { root } = createAppFixture();
+    const row = root.querySelector<HTMLElement>('.midi-device-controls')!;
+    expect([...row.querySelectorAll('select')].map((select) => select.id)).toEqual(['midi-input', 'midi-output']);
+    expect([...row.children].map((element) => element.className)).toEqual([
+      'output-input-controls', '', 'program-controls',
+    ]);
   });
 
   it('renders connected, detached, requesting, and suspended input states', () => {
     const { root, emitInput } = createAppFixture();
     const select = root.querySelector<HTMLSelectElement>('#midi-input')!;
-    const message = root.querySelector<HTMLElement>('#midi-input-message')!;
     const action = root.querySelector<HTMLButtonElement>('#midi-input-action')!;
 
     emitInput(readyInput);
@@ -152,22 +159,18 @@ describe('MIDI input controls', () => {
     expect(select.value).toBe('keyboard');
     expect(select.selectedOptions[0].textContent).toContain('connected');
     expect(select.disabled).toBe(false);
-    expect(message.textContent).toContain('Connected to Keyboard');
     expect(action.hidden).toBe(true);
 
     emitInput({ ...readyInput, status: 'disconnected', message: 'Preferred MIDI input disconnected.',
       inputs: [readyInput.inputs[1]], attachedInputId: null });
     expect(select.value).toBe('keyboard');
     expect(select.selectedOptions[0].textContent).toContain('disconnected');
-    expect(message.textContent).toContain('disconnected');
-    expect(message.textContent).not.toContain('Connected to Keyboard');
 
     emitInput({ ...readyInput, status: 'requesting', message: 'Requesting MIDI access…', attachedInputId: null });
     expect(select.disabled).toBe(true);
 
     emitInput({ ...readyInput, status: 'suspended', message: 'Possible MIDI feedback loop detected. Check MIDI routing, then resume input.', attachedInputId: null });
     expect(select.value).toBe('keyboard');
-    expect(message.textContent).toContain('feedback loop');
     expect(action.hidden).toBe(false);
     expect(action.textContent).toContain('Resume');
   });

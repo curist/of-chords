@@ -47,20 +47,19 @@ kbd { display: inline-grid; place-items: center; min-width: 28px; min-height: 27
 .output-panel { display: grid; gap: 18px; padding: 20px; }
 .output-head { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 22px; }
 .output-head p:last-child { margin: 5px 0 0; color: #918b7d; font-size: 13px; }
-.output-midi { display: grid; grid-template-columns: minmax(250px, 1fr) auto; align-items: end; gap: 22px; padding-top: 16px; border-top: 1px solid #39362e; }
+.output-midi { display: grid; gap: 18px; padding-top: 16px; border-top: 1px solid #39362e; }
 [data-output-panel][hidden] { display: none; }
-.output-midi select#midi-output { min-width: 250px; }
-.output-input { display: grid; gap: 8px; padding-top: 16px; border-top: 1px solid #39362e; }
+.midi-device-controls { display: grid; grid-template-columns: repeat(2, minmax(250px, 1fr)) auto; align-items: end; gap: 22px; }
+.midi-device-controls[data-output-mode="builtin"] { grid-template-columns: 1fr; }
+.midi-device-controls > label, .midi-device-controls select { width: 100%; }
 .output-input-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
-.output-input-controls label { margin: 0; }
-.output-input select { min-width: 250px; }
-.output-input button { min-height: 42px; padding: 10px 14px; border: 1px solid #454138; border-radius: 9px; background: #25231e; cursor: pointer; }
-.output-input button:hover { border-color: #e6b84b; }
-.output-input button[hidden] { display: none; }
-.output-input p { margin: 0; color: #918b7d; font-size: 13px; }
+.output-input-controls label { flex: 1 1 250px; margin: 0; }
+.output-input-controls button { min-height: 42px; padding: 10px 14px; border: 1px solid #454138; border-radius: 9px; background: #25231e; cursor: pointer; }
+.output-input-controls button:hover { border-color: #e6b84b; }
+.output-input-controls button[hidden] { display: none; }
 .panic { padding: 13px 18px; border: 1px solid #ba564b; border-radius: 10px; background: #4c211e; cursor: pointer; font-weight: 700; }
 .panic:hover { background: #c15d50; }
-.program-controls { display: grid; grid-template-columns: 42px auto 42px; align-items: end; gap: 8px; }
+.program-controls { display: grid; grid-template-columns: 42px 110px 42px; align-items: end; gap: 8px; }
 .program-controls label { margin: 0; }
 .program-controls input { width: 110px; padding: 10px 12px; border: 1px solid #464238; border-radius: 9px; color: #f4f1e8; background: #151512; font: inherit; }
 .program-controls button { height: 48px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid #454138; border-radius: 9px; background: #25231e; cursor: pointer; white-space: nowrap; }
@@ -90,10 +89,10 @@ kbd { display: inline-grid; place-items: center; min-width: 28px; min-height: 27
   .chord-grid { grid-template-columns: repeat(4, 1fr); }
   .readout-grid { grid-template-columns: 1fr; }
   .output-head { grid-template-columns: 1fr; }
-  .output-midi { grid-template-columns: 1fr; }
-  .output-midi > label, .output-midi select#midi-output { width: 100%; }
-  .output-input-controls label, .output-input select { width: 100%; }
-  .program-controls { grid-template-columns: 64px auto 64px; }
+  .midi-device-controls { grid-template-columns: 1fr; }
+  .midi-device-controls[data-output-mode="builtin"] { grid-template-columns: 1fr; }
+  .output-input-controls label, .midi-device-controls select { width: 100%; }
+  .program-controls { grid-template-columns: 64px minmax(110px, 1fr) 64px; }
 }
 @media (max-width: 560px) {
   .instrument { width: min(100% - 20px, 1180px); padding-top: 24px; }
