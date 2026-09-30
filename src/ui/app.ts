@@ -184,7 +184,7 @@ export class App {
         <section class="panel input-panel" aria-labelledby="input-heading">
           <div class="input-head">
             <div><p class="section-label">Input</p><h2 id="input-heading">Controller input</h2><p id="midi-input-message"></p></div>
-            <div class="output-input-controls">
+            <div class="midi-input-controls">
               <label>MIDI Input<select id="midi-input"><option value="">No input</option></select></label>
               <button id="midi-input-action" type="button">Connect input</button>
             </div>
