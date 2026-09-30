@@ -200,9 +200,6 @@ export class App {
             <button id="panic" class="panic" data-output-panel="midi">Panic · All Notes Off</button>
           </div>
 
-          <div class="output-builtin" data-output-panel="builtin">
-            <p>Uses the browser's built-in instrument.</p>
-          </div>
           <div class="output-midi" data-output-panel="midi">
             <div class="midi-device-controls">
               <label>MIDI Output<select id="midi-output"><option value="">No output selected</option></select></label>

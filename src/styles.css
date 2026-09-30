@@ -46,10 +46,9 @@ kbd { display: inline-grid; place-items: center; min-width: 28px; min-height: 27
 .roman-line { color: #e6b84b; font: 400 13px/1.6 ui-monospace, monospace; }
 .input-panel { padding: 20px; margin-bottom: 16px; }
 .input-head { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(320px, 1.5fr); align-items: end; gap: 22px; }
-.input-head p:last-child, .output-builtin p, .output-head p:last-child { margin: 5px 0 0; color: #918b7d; font-size: 13px; }
+.input-head p:last-child, .output-head p:last-child { margin: 5px 0 0; color: #918b7d; font-size: 13px; }
 .output-panel { display: grid; gap: 18px; padding: 20px; }
 .output-head { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 22px; }
-.output-builtin { padding-top: 16px; border-top: 1px solid #39362e; }
 .output-midi { display: grid; gap: 18px; padding-top: 16px; border-top: 1px solid #39362e; }
 [data-output-panel][hidden] { display: none; }
 .midi-device-controls { display: grid; grid-template-columns: minmax(250px, 1fr) auto; align-items: end; gap: 22px; }
