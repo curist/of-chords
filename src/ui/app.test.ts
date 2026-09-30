@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from 'vitest';
-import { App, commitModeSelection, commitProgramSelection, commitTonicSelection, commitVoiceSelection, GamepadNotification, isOutputPanelVisible } from './app';
+import { App, commitModeSelection, commitProgramSelection, commitTonicSelection, commitVoiceSelection, GamepadNotification } from './app';
 import type { InstrumentAction } from '../state/instrument';
 import { InstrumentStore } from '../state/store';
 import { WebAudioSynthSink } from '../audio/synth';
@@ -24,12 +24,11 @@ function createAppFixture() {
     status: 'idle', message: 'MIDI access has not been requested.', outputs: [],
     selectedOutputId: null, preferredOutputId: null, preferredOutputLabel: null,
   } satisfies MidiOutputSnapshot;
-  let outputListener: (snapshot: MidiOutputSnapshot) => void = () => {};
   const unsubscribeMidi = vi.fn();
   const midi = {
     initialize: vi.fn(async () => {}),
     selectOutput: vi.fn(),
-    subscribe(listener: (snapshot: MidiOutputSnapshot) => void) { outputListener = listener; listener(outputSnapshot); return unsubscribeMidi; },
+    subscribe(listener: (snapshot: MidiOutputSnapshot) => void) { listener(outputSnapshot); return unsubscribeMidi; },
     noteOn() {}, noteOff() {}, allNotesOff() {}, programChange() {},
   };
   const output = new OutputController(synth, midi, { storage: null });
@@ -46,7 +45,6 @@ function createAppFixture() {
     const unsubscribe = originalOutputSubscribe(listener);
     return () => { unsubscribeOutput(); unsubscribe(); };
   });
-  let inputListener: (snapshot: MidiInputSnapshot) => void = () => {};
   const unsubscribeInput = vi.fn();
   const initialInput: MidiInputSnapshot = {
     status: 'idle', message: 'MIDI access has not been requested.', inputs: [],
@@ -54,7 +52,7 @@ function createAppFixture() {
   };
   const input = {
     selectInput: vi.fn(), resume: vi.fn(),
-    subscribe(listener: (snapshot: MidiInputSnapshot) => void) { inputListener = listener; listener(initialInput); return unsubscribeInput; },
+    subscribe(listener: (snapshot: MidiInputSnapshot) => void) { listener(initialInput); return unsubscribeInput; },
   };
   const access = { initialize: vi.fn(async () => {}) };
   const app = new App(root, store, midi as unknown as WebMidiOutputManager, output, synth,
@@ -62,8 +60,6 @@ function createAppFixture() {
   return {
     app, root, store, output, input, access, synth,
     unsubscribeStore, unsubscribeMidi, unsubscribeInput, unsubscribeOutput,
-    emitOutput(snapshot: MidiOutputSnapshot) { outputListener(snapshot); },
-    emitInput(snapshot: MidiInputSnapshot) { inputListener(snapshot); },
   };
 }
 
@@ -111,15 +107,6 @@ describe('App disposal', () => {
     }
   });
 });
-
-const readyInput: MidiInputSnapshot = {
-  status: 'ready', message: 'Connected to Keyboard.',
-  inputs: [
-    { id: 'keyboard', name: 'Keyboard', manufacturer: 'Acme', state: 'connected' },
-    { id: 'pads', name: 'Pads', manufacturer: '', state: 'connected' },
-  ],
-  preferredInputId: 'keyboard', preferredInputLabel: 'Keyboard · Acme', attachedInputId: 'keyboard',
-};
 
 describe('tonic selection', () => {
   it('dispatches the selected tonic', () => {
@@ -223,17 +210,6 @@ describe('DOM event boundaries', () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
-  it('ignores invalid output mode without changing mode or requesting MIDI', () => {
-    const { root, output, access } = createAppFixture();
-    const setMode = vi.spyOn(output, 'setMode');
-    const button = root.querySelector<HTMLButtonElement>('[data-output="midi"]')!;
-    button.dataset.output = '__proto__';
-    button.click();
-    expect(output.mode).toBe('builtin');
-    expect(setMode).not.toHaveBeenCalled();
-    expect(access.initialize).not.toHaveBeenCalled();
-  });
-
   it('ignores invalid voice parameters without changing synth parameters', () => {
     const { root, synth } = createAppFixture();
     const setParams = vi.spyOn(synth, 'setParams');
@@ -293,33 +269,6 @@ describe('DOM event boundaries', () => {
   });
 });
 
-describe('output-specific controls', () => {
-  it('shows MIDI controls only while MIDI is selected', () => {
-    expect(isOutputPanelVisible('midi', 'midi')).toBe(true);
-    expect(isOutputPanelVisible('midi', 'builtin')).toBe(false);
-  });
-
-  it('requests MIDI access when MIDI output is selected', async () => {
-    const appModule = await import('./app');
-    const activateOutputMode = (appModule as unknown as {
-      activateOutputMode?: (
-        mode: 'builtin' | 'midi',
-        midi: { initialize(): Promise<void> },
-        output: { setMode(mode: 'builtin' | 'midi'): void },
-      ) => void;
-    }).activateOutputMode;
-    const events: string[] = [];
-
-    activateOutputMode?.(
-      'midi',
-      { async initialize() { events.push('request-midi'); } },
-      { setMode(mode) { events.push(`select-${mode}`); } },
-    );
-
-    expect(events).toEqual(['request-midi', 'select-midi']);
-  });
-});
-
 describe('MIDI input controls', () => {
   it('places MIDI input in its own panel outside sound output', () => {
     const { root, output } = createAppFixture();
@@ -347,145 +296,6 @@ describe('MIDI input controls', () => {
       .map((button) => button.textContent)).toEqual(['Built-in voice', 'MIDI device']);
   });
 
-  it('renders connected, detached, requesting, and suspended input states', () => {
-    const { root, emitInput } = createAppFixture();
-    const select = root.querySelector<HTMLSelectElement>('#midi-input')!;
-    const action = root.querySelector<HTMLButtonElement>('#midi-input-action')!;
-
-    emitInput(readyInput);
-    expect([...select.options].map((option) => option.value)).toEqual(['', 'keyboard', 'pads']);
-    expect(select.value).toBe('keyboard');
-    expect(select.selectedOptions[0].textContent).toContain('connected');
-    expect(select.disabled).toBe(false);
-    expect(action.hidden).toBe(true);
-
-    emitInput({ ...readyInput, status: 'disconnected', message: 'Preferred MIDI input disconnected.',
-      inputs: [readyInput.inputs[1]], attachedInputId: null });
-    expect(select.value).toBe('keyboard');
-    expect(select.selectedOptions[0].textContent).toBe('Keyboard · Acme (disconnected)');
-
-    emitInput({ ...readyInput, status: 'requesting', message: 'Requesting MIDI access…', attachedInputId: null });
-    expect(select.disabled).toBe(true);
-
-    emitInput({ ...readyInput, status: 'suspended', message: 'Possible MIDI feedback loop detected. Check MIDI routing, then resume input.', attachedInputId: null });
-    expect(select.value).toBe('keyboard');
-    expect(action.hidden).toBe(false);
-    expect(action.textContent).toContain('Resume');
-  });
-
-  it('selects devices and No input through real change events', () => {
-    const { root, input, emitInput } = createAppFixture();
-    emitInput(readyInput);
-    const select = root.querySelector<HTMLSelectElement>('#midi-input')!;
-    select.value = 'pads';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-    select.value = '';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(input.selectInput.mock.calls).toEqual([['pads'], [null]]);
-  });
-
-  it('connects shared access from a click and resumes a suspended preferred input', () => {
-    const { root, input, access, emitInput } = createAppFixture();
-    const action = root.querySelector<HTMLButtonElement>('#midi-input-action')!;
-    action.click();
-    expect(access.initialize).toHaveBeenCalledOnce();
-    emitInput({ ...readyInput, status: 'suspended', message: 'Possible MIDI feedback loop detected.', attachedInputId: null });
-    expect(root.querySelector<HTMLSelectElement>('#midi-input')?.value).toBe('keyboard');
-    action.click();
-    expect(input.resume).toHaveBeenCalledOnce();
-    expect(access.initialize).toHaveBeenCalledOnce();
-  });
-});
-
-describe('routing status', () => {
-  it('shows the active output and adds a directional MIDI input badge when connected', () => {
-    const { root, emitInput } = createAppFixture();
-    const inputStatus = root.querySelector<HTMLElement>('#input-status-pill')!;
-    const outputStatus = root.querySelector<HTMLElement>('#output-status-pill')!;
-
-    expect(inputStatus.hidden).toBe(true);
-    expect(outputStatus.textContent).toContain('Built-in voice');
-
-    emitInput(readyInput);
-    expect(inputStatus.hidden).toBe(false);
-    expect(inputStatus.textContent).toContain('MIDI In · Keyboard');
-    expect(outputStatus.textContent).toContain('Built-in voice');
-  });
-
-  it('labels connected MIDI output directionally', () => {
-    const { root, output, emitOutput } = createAppFixture();
-    output.setMode('midi');
-    emitOutput({
-      status: 'ready', message: 'Connected to Synth.',
-      outputs: [{ id: 'synth', name: 'Synth', manufacturer: 'Acme', state: 'connected' }],
-      selectedOutputId: 'synth', preferredOutputId: 'synth', preferredOutputLabel: 'Synth · Acme',
-    });
-
-    expect(root.querySelector('#output-status-pill')?.textContent).toContain('MIDI Out · Synth');
-    expect(root.querySelector('#output-message')?.textContent).toBe('Connected to Synth.');
-    expect(root.querySelector('#output-message')?.closest('[hidden]')).toBeNull();
-  });
-
-  it('uses the warning color instead of a long label when the preferred output disappears', () => {
-    const { root, output, emitOutput } = createAppFixture();
-    output.setMode('midi');
-    emitOutput({
-      status: 'ready', message: 'Preferred MIDI output disconnected.', outputs: [],
-      selectedOutputId: null, preferredOutputId: 'synth', preferredOutputLabel: 'Synth · Acme',
-    });
-
-    const status = root.querySelector<HTMLElement>('#output-status-pill')!;
-    expect(status.dataset.status).toBe('disconnected');
-    expect(status.textContent).toBe('MIDI Out');
-  });
-
-  it('uses the warning color instead of status text when the preferred input disappears', () => {
-    const { root, emitInput } = createAppFixture();
-    emitInput({
-      ...readyInput,
-      status: 'disconnected',
-      message: 'Preferred MIDI input disconnected.',
-      inputs: [readyInput.inputs[1]],
-      attachedInputId: null,
-    });
-
-    const status = root.querySelector<HTMLElement>('#input-status-pill')!;
-    expect(status.dataset.status).toBe('disconnected');
-    expect(status.textContent).toBe('MIDI In');
-  });
-
-  it('keeps MIDI input warnings visible in the header and input panel', () => {
-    const { root, emitInput } = createAppFixture();
-    emitInput({
-      ...readyInput,
-      status: 'suspended',
-      message: 'Possible MIDI feedback loop detected.',
-      attachedInputId: null,
-    });
-
-    expect(root.querySelector('#input-status-pill')?.textContent).toContain('MIDI In suspended');
-    expect(root.querySelector('#midi-input-message')?.textContent).toBe('Possible MIDI feedback loop detected.');
-  });
-});
-
-describe('MIDI output controls', () => {
-  it('marks the attached output and keeps a disconnected preferred output visible', () => {
-    const { root, emitOutput } = createAppFixture();
-    const select = root.querySelector<HTMLSelectElement>('#midi-output')!;
-    emitOutput({
-      status: 'ready', message: 'Connected to Synth.',
-      outputs: [{ id: 'synth', name: 'Synth', manufacturer: 'Acme', state: 'connected' }],
-      selectedOutputId: 'synth', preferredOutputId: 'synth', preferredOutputLabel: 'Synth · Acme',
-    });
-    expect(select.selectedOptions[0].textContent).toBe('Synth · Acme (connected)');
-
-    emitOutput({
-      status: 'ready', message: 'MIDI ready. Select an output.', outputs: [],
-      selectedOutputId: null, preferredOutputId: 'synth', preferredOutputLabel: 'Synth · Acme',
-    });
-    expect(select.value).toBe('synth');
-    expect(select.selectedOptions[0].textContent).toBe('Synth · Acme (disconnected)');
-  });
 });
 
 describe('performance readout', () => {

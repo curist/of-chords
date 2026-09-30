@@ -9,12 +9,14 @@ import { noteNames, parsePitchClass, TONIC_OPTIONS } from '../music/notes';
 import { MODE_OPTIONS, parseMode } from '../music/scales';
 import { voiceChord } from '../music/voicing';
 import type { WebMidiAccess } from '../midi/midi-access';
-import type { WebMidiInputManager, MidiInputSnapshot } from '../midi/midi-input';
-import type { WebMidiOutputManager, MidiOutputSnapshot } from '../midi/midi-output';
-import type { OutputController, OutputMode, OutputSnapshot } from '../output/output-controller';
+import type { WebMidiInputManager } from '../midi/midi-input';
+import type { WebMidiOutputManager } from '../midi/midi-output';
+import type { OutputController } from '../output/output-controller';
 import type { ActiveGesture, InstrumentAction, InstrumentState } from '../state/instrument';
 import type { InstrumentStore } from '../state/store';
-import { parseOutputMode, requireElement } from './dom';
+import { requireElement } from './dom';
+import { MidiInputView } from './midi-input-view';
+import { OutputView } from './output-view';
 
 export function commitTonicSelection(
   select: HTMLSelectElement,
@@ -48,27 +50,6 @@ export function commitVoiceSelection(
   apply: (value: string) => void,
 ): void {
   apply(select.value);
-}
-
-export function isOutputPanelVisible(panel: OutputMode, mode: OutputMode): boolean {
-  return panel === mode;
-}
-
-export function activateOutputMode(
-  mode: OutputMode,
-  access: Pick<WebMidiAccess, 'initialize'>,
-  output: Pick<OutputController, 'setMode'>,
-): void {
-  if (mode === 'midi') void access.initialize();
-  output.setMode(mode);
-}
-
-export function activateMidiInput(input: Pick<WebMidiInputManager, 'selectInput'>, id: string | null): void {
-  input.selectInput(id);
-}
-
-export function resumeMidiInput(input: Pick<WebMidiInputManager, 'resume'>): void {
-  input.resume();
 }
 
 type ScheduleDismiss = (callback: () => void, delay: number) => number;
@@ -114,9 +95,6 @@ export class App {
   readonly #cleanup = new CleanupStack();
   readonly #pointerOwners = new Map<number, string>();
   readonly #gamepadNotification: GamepadNotification;
-  #latestMidi: MidiOutputSnapshot | null = null;
-  #latestInput: MidiInputSnapshot | null = null;
-  #mode: OutputMode = 'builtin';
 
   constructor(
     private readonly root: HTMLElement,
@@ -132,11 +110,12 @@ export class App {
       requireElement<HTMLElement>(this.root, '#gamepad-notification'),
     );
     this.#cleanup.add(() => this.#gamepadNotification.dispose());
+    const midiInputView = new MidiInputView(this.root, this.midiInput, this.midiAccess);
+    this.#cleanup.add(() => midiInputView.dispose());
+    const outputView = new OutputView(this.root, this.output, this.midi, this.midiAccess);
+    this.#cleanup.add(() => outputView.dispose());
     this.#bindControls();
     this.#cleanup.add(this.store.subscribe((state) => this.#renderInstrument(state)));
-    this.#cleanup.add(this.midi.subscribe((snapshot) => this.#renderMidi(snapshot)));
-    this.#cleanup.add(this.midiInput.subscribe((snapshot) => this.#renderMidiInput(snapshot)));
-    this.#cleanup.add(this.output.subscribe((snapshot) => this.#renderOutput(snapshot)));
   }
 
   dispose(): void {
@@ -305,23 +284,6 @@ export class App {
     };
     this.#listen(chordGrid, 'pointerup', releasePointer);
     this.#listen(chordGrid, 'pointercancel', releasePointer);
-    this.#listen(requireElement(this.root, '#output-mode'), 'click', (event) => {
-      const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-output]') : null;
-      const outputMode = parseOutputMode(button?.dataset.output ?? '');
-      if (outputMode !== null) activateOutputMode(outputMode, this.midiAccess, this.output);
-    });
-    const midiInput = requireElement<HTMLSelectElement>(this.root, '#midi-input');
-    this.#listen(midiInput, 'change', () => {
-      activateMidiInput(this.midiInput, midiInput.value || null);
-    });
-    this.#listen(requireElement(this.root, '#midi-input-action'), 'click', () => {
-      if (this.#latestInput?.status === 'suspended') resumeMidiInput(this.midiInput);
-      else void this.midiAccess.initialize();
-    });
-    const midiOutput = requireElement<HTMLSelectElement>(this.root, '#midi-output');
-    this.#listen(midiOutput, 'change', () => {
-      this.midi.selectOutput(midiOutput.value || null);
-    });
     this.#listen(requireElement(this.root, '#panic'), 'click', () => this.store.dispatch({ type: 'panic' }));
     if (SHOW_VOICE_TUNING) this.#bindDevPanel();
     this.#listen(requireElement(this.root, '#previous-program'), 'click', () => this.store.dispatch({ type: 'step-program', direction: -1 }));
@@ -375,98 +337,6 @@ export class App {
       return `<div class="sounding-chord"><div><strong>${gesture.name}</strong><span>Passthrough</span></div><p><small>MIDI ${gesture.note}</small></p></div>`;
     }
     return `<div class="sounding-chord"><div><strong>${gesture.name}</strong><span>${gesture.roman}</span></div><p>${gesture.noteNames.join(' &nbsp; ')}<small>MIDI ${gesture.notes.join(' · ')}</small></p></div>`;
-  }
-
-  #renderMidi(snapshot: MidiOutputSnapshot): void {
-    this.#latestMidi = snapshot;
-    const select = this.root.querySelector<HTMLSelectElement>('#midi-output')!;
-    const emptyOption = new Option('No output selected', '');
-    const outputOptions = snapshot.outputs.map((output) => new Option(
-      `${output.name}${output.manufacturer ? ` · ${output.manufacturer}` : ''}${output.id === snapshot.selectedOutputId ? ' (connected)' : ''}`,
-      output.id,
-    ));
-    if (snapshot.preferredOutputId && !snapshot.outputs.some((output) => output.id === snapshot.preferredOutputId)) {
-      outputOptions.push(new Option(
-        `${snapshot.preferredOutputLabel ?? snapshot.preferredOutputId} (disconnected)`,
-        snapshot.preferredOutputId,
-      ));
-    }
-    select.replaceChildren(emptyOption, ...outputOptions);
-    select.value = snapshot.preferredOutputId ?? '';
-    select.disabled = snapshot.status !== 'ready'
-      || (snapshot.outputs.length === 0 && snapshot.preferredOutputId === null);
-    this.#renderStatus();
-  }
-
-  #renderMidiInput(snapshot: MidiInputSnapshot): void {
-    this.#latestInput = snapshot;
-    const select = this.root.querySelector<HTMLSelectElement>('#midi-input')!;
-    const emptyOption = new Option('No input', '');
-    const inputOptions = snapshot.inputs.map((input) => new Option(
-      `${input.name}${input.manufacturer ? ` · ${input.manufacturer}` : ''}${input.id === snapshot.attachedInputId ? ' (connected)' : ''}`,
-      input.id,
-    ));
-    if (snapshot.preferredInputId && !snapshot.inputs.some((input) => input.id === snapshot.preferredInputId)) {
-      inputOptions.push(new Option(
-        `${snapshot.preferredInputLabel ?? snapshot.preferredInputId} (disconnected)`,
-        snapshot.preferredInputId,
-      ));
-    }
-    select.replaceChildren(emptyOption, ...inputOptions);
-    select.value = snapshot.preferredInputId ?? '';
-    select.disabled = (snapshot.status !== 'ready' && snapshot.status !== 'disconnected')
-      || (snapshot.inputs.length === 0 && snapshot.preferredInputId === null);
-
-    const action = this.root.querySelector<HTMLButtonElement>('#midi-input-action')!;
-    action.hidden = snapshot.status === 'ready' || snapshot.status === 'disconnected'
-      || snapshot.status === 'requesting' || snapshot.status === 'unsupported';
-    action.textContent = snapshot.status === 'suspended' ? 'Resume input' : 'Connect input';
-
-    this.root.querySelector<HTMLElement>('#midi-input-message')!.textContent = snapshot.message;
-    const pill = this.root.querySelector<HTMLElement>('#input-status-pill')!;
-    const attached = snapshot.inputs.find((input) => input.id === snapshot.attachedInputId);
-    pill.hidden = snapshot.preferredInputId === null && snapshot.attachedInputId === null;
-    pill.dataset.status = snapshot.status;
-    pill.querySelector('b')!.textContent = snapshot.status === 'suspended'
-      ? 'MIDI In suspended'
-      : attached ? `MIDI In · ${attached.name}` : 'MIDI In';
-  }
-
-  #renderOutput(snapshot: OutputSnapshot): void {
-    this.#mode = snapshot.mode;
-    this.root.querySelectorAll<HTMLButtonElement>('[data-output]').forEach((button) => {
-      button.classList.toggle('selected', button.dataset.output === snapshot.mode);
-    });
-    this.root.querySelectorAll<HTMLElement>('[data-output-panel]').forEach((panel) => {
-      const panelMode = parseOutputMode(panel.dataset.outputPanel ?? '');
-      if (panelMode !== null) panel.hidden = !isOutputPanelVisible(panelMode, snapshot.mode);
-    });
-    if (SHOW_VOICE_TUNING) {
-      const voicePanel = this.root.querySelector<HTMLElement>('.voice-panel');
-      if (voicePanel) voicePanel.hidden = snapshot.mode !== 'builtin';
-    }
-    this.#renderStatus();
-  }
-
-  #renderStatus(): void {
-    const pill = this.root.querySelector<HTMLElement>('#output-status-pill')!;
-    const message = this.root.querySelector<HTMLElement>('#output-message')!;
-    if (this.#mode === 'builtin') {
-      pill.dataset.status = 'ready';
-      pill.querySelector('b')!.textContent = 'Built-in voice';
-      message.textContent = 'Playing the built-in voice.';
-      return;
-    }
-    const midi = this.#latestMidi;
-    const selected = midi?.outputs.find((output) => output.id === midi.selectedOutputId);
-    const disconnected = midi?.status === 'ready'
-      && midi.preferredOutputId !== null
-      && midi.selectedOutputId === null;
-    pill.dataset.status = disconnected ? 'disconnected' : midi?.status ?? 'idle';
-    let label = midi?.status === 'ready' && !disconnected ? 'MIDI Out ready' : 'MIDI Out';
-    if (selected) label = `MIDI Out · ${selected.name}`;
-    pill.querySelector('b')!.textContent = label;
-    message.textContent = midi?.message ?? 'Requesting MIDI access…';
   }
 
   #bindDevPanel(): void {
