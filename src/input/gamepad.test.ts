@@ -4,6 +4,7 @@ import type { InstrumentAction } from '../state/instrument';
 
 class FakeGamepadTarget implements GamepadEventTarget {
   readonly listeners = new Map<string, Set<(event: GamepadEventLike) => void>>();
+  readonly removals: string[] = [];
 
   addEventListener(type: 'gamepadconnected' | 'gamepaddisconnected', listener: (event: GamepadEventLike) => void): void {
     const group = this.listeners.get(type) ?? new Set();
@@ -12,6 +13,7 @@ class FakeGamepadTarget implements GamepadEventTarget {
   }
 
   removeEventListener(type: 'gamepadconnected' | 'gamepaddisconnected', listener: (event: GamepadEventLike) => void): void {
+    this.removals.push(type);
     this.listeners.get(type)?.delete(listener);
   }
 
@@ -23,6 +25,9 @@ class FakeGamepadTarget implements GamepadEventTarget {
 class FakeFrames implements FrameScheduler {
   #nextId = 1;
   #callbacks = new Map<number, () => void>();
+  readonly cancellations: number[] = [];
+
+  get pending(): number { return this.#callbacks.size; }
 
   request(callback: () => void): number {
     const id = this.#nextId++;
@@ -31,6 +36,7 @@ class FakeFrames implements FrameScheduler {
   }
 
   cancel(id: number): void {
+    this.cancellations.push(id);
     this.#callbacks.delete(id);
   }
 
@@ -117,6 +123,36 @@ describe('GamepadInput', () => {
       { type: 'release', owner: 'gamepad:2:button:5' },
       { type: 'release', owner: 'gamepad:2:button:6' },
     ]);
+  });
+
+  it('detaches once, cancels the active frame, and releases each held owner once', () => {
+    const target = new FakeGamepadTarget();
+    const frames = new FakeFrames();
+    let current: GamepadLike = gamepad(1);
+    const actions: InstrumentAction[] = [];
+    const detach = new GamepadInput(
+      target, { getGamepads: () => [null, current] }, frames,
+      (action) => actions.push(action), () => {},
+    ).attach();
+    frames.run();
+    current = gamepad(1, [0, 1]);
+    frames.run();
+    expect(frames.pending).toBe(1);
+
+    detach();
+    detach();
+    frames.run();
+    target.emit('gamepadconnected', current);
+
+    expect(actions).toEqual([
+      { type: 'press', owner: 'gamepad:1:button:0', degree: 1 },
+      { type: 'press', owner: 'gamepad:1:button:1', degree: 2 },
+      { type: 'release', owner: 'gamepad:1:button:0' },
+      { type: 'release', owner: 'gamepad:1:button:1' },
+    ]);
+    expect(target.removals).toEqual(['gamepadconnected', 'gamepaddisconnected']);
+    expect(frames.cancellations).toHaveLength(1);
+    expect(frames.pending).toBe(0);
   });
 });
 

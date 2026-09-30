@@ -3,26 +3,22 @@ import { handlePageHide } from './page-lifecycle';
 
 describe('page lifecycle', () => {
   it('keeps MIDI subscriptions alive when the page enters the back-forward cache', () => {
-    const midiInput = { dispose: vi.fn() };
-    const midiOutput = { dispose: vi.fn() };
+    const dispose = vi.fn();
     const panic = vi.fn();
 
-    handlePageHide({ persisted: true }, midiInput, midiOutput, panic);
+    handlePageHide({ persisted: true }, dispose, panic);
 
     expect(panic).toHaveBeenCalledOnce();
-    expect(midiInput.dispose).not.toHaveBeenCalled();
-    expect(midiOutput.dispose).not.toHaveBeenCalled();
+    expect(dispose).not.toHaveBeenCalled();
   });
 
-  it('disposes MIDI subscriptions when the page is actually unloaded', () => {
-    const midiInput = { dispose: vi.fn() };
-    const midiOutput = { dispose: vi.fn() };
+  it('uses the application disposer when the page is actually unloaded', () => {
+    const dispose = vi.fn();
     const panic = vi.fn();
 
-    handlePageHide({ persisted: false }, midiInput, midiOutput, panic);
+    handlePageHide({ persisted: false }, dispose, panic);
 
-    expect(panic).toHaveBeenCalledOnce();
-    expect(midiInput.dispose).toHaveBeenCalledOnce();
-    expect(midiOutput.dispose).toHaveBeenCalledOnce();
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(panic).not.toHaveBeenCalled();
   });
 });

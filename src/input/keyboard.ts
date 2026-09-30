@@ -41,7 +41,10 @@ export class KeyboardInput {
     };
     this.target.addEventListener('keydown', keydown);
     this.target.addEventListener('keyup', keyup);
+    let detached = false;
     return () => {
+      if (detached) return;
+      detached = true;
       this.target.removeEventListener('keydown', keydown);
       this.target.removeEventListener('keyup', keyup);
     };

@@ -85,10 +85,16 @@ export class GamepadInput {
     };
     this.#frameId = this.frames.request(poll);
 
+    let detached = false;
     return () => {
+      if (detached) return;
+      detached = true;
       this.target.removeEventListener('gamepadconnected', connected);
       this.target.removeEventListener('gamepaddisconnected', disconnected);
-      if (this.#frameId !== null) this.frames.cancel(this.#frameId);
+      if (this.#frameId !== null) {
+        this.frames.cancel(this.#frameId);
+        this.#frameId = null;
+      }
       for (const index of [...this.#controllers.keys()]) this.#disconnect(index);
     };
   }

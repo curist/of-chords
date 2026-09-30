@@ -25,32 +25,92 @@ function createAppFixture() {
     selectedOutputId: null, preferredOutputId: null, preferredOutputLabel: null,
   } satisfies MidiOutputSnapshot;
   let outputListener: (snapshot: MidiOutputSnapshot) => void = () => {};
+  const unsubscribeMidi = vi.fn();
   const midi = {
     initialize: vi.fn(async () => {}),
     selectOutput: vi.fn(),
-    subscribe(listener: (snapshot: MidiOutputSnapshot) => void) { outputListener = listener; listener(outputSnapshot); return () => {}; },
+    subscribe(listener: (snapshot: MidiOutputSnapshot) => void) { outputListener = listener; listener(outputSnapshot); return unsubscribeMidi; },
     noteOn() {}, noteOff() {}, allNotesOff() {}, programChange() {},
   };
   const output = new OutputController(synth, midi, { storage: null });
   const store = new InstrumentStore({ acquire() {}, release() {}, panic() {}, programChange() {} });
+  const unsubscribeStore = vi.fn();
+  const originalStoreSubscribe = store.subscribe.bind(store);
+  vi.spyOn(store, 'subscribe').mockImplementation((listener) => {
+    const unsubscribe = originalStoreSubscribe(listener);
+    return () => { unsubscribeStore(); unsubscribe(); };
+  });
+  const unsubscribeOutput = vi.fn();
+  const originalOutputSubscribe = output.subscribe.bind(output);
+  vi.spyOn(output, 'subscribe').mockImplementation((listener) => {
+    const unsubscribe = originalOutputSubscribe(listener);
+    return () => { unsubscribeOutput(); unsubscribe(); };
+  });
   let inputListener: (snapshot: MidiInputSnapshot) => void = () => {};
+  const unsubscribeInput = vi.fn();
   const initialInput: MidiInputSnapshot = {
     status: 'idle', message: 'MIDI access has not been requested.', inputs: [],
     preferredInputId: null, preferredInputLabel: null, attachedInputId: null,
   };
   const input = {
     selectInput: vi.fn(), resume: vi.fn(),
-    subscribe(listener: (snapshot: MidiInputSnapshot) => void) { inputListener = listener; listener(initialInput); return () => {}; },
+    subscribe(listener: (snapshot: MidiInputSnapshot) => void) { inputListener = listener; listener(initialInput); return unsubscribeInput; },
   };
   const access = { initialize: vi.fn(async () => {}) };
-  new App(root, store, midi as unknown as WebMidiOutputManager, output, synth,
+  const app = new App(root, store, midi as unknown as WebMidiOutputManager, output, synth,
     input as unknown as WebMidiInputManager, access as unknown as WebMidiAccess);
   return {
-    root, store, output, input, access,
+    app, root, store, output, input, access,
+    unsubscribeStore, unsubscribeMidi, unsubscribeInput, unsubscribeOutput,
     emitOutput(snapshot: MidiOutputSnapshot) { outputListener(snapshot); },
     emitInput(snapshot: MidiInputSnapshot) { inputListener(snapshot); },
   };
 }
+
+describe('App disposal', () => {
+  it('unsubscribes all four sources exactly once', () => {
+    const fixture = createAppFixture();
+
+    fixture.app.dispose();
+    fixture.app.dispose();
+
+    expect(fixture.unsubscribeStore).toHaveBeenCalledOnce();
+    expect(fixture.unsubscribeMidi).toHaveBeenCalledOnce();
+    expect(fixture.unsubscribeInput).toHaveBeenCalledOnce();
+    expect(fixture.unsubscribeOutput).toHaveBeenCalledOnce();
+  });
+
+  it('removes control listeners so root events no longer change the instrument', () => {
+    const { app, root, store, input } = createAppFixture();
+    const shape = root.querySelector<HTMLButtonElement>('[data-shape="seventh"]')!;
+    shape.click();
+    expect(store.getState().shape).toBe('seventh');
+
+    app.dispose();
+    root.querySelector<HTMLButtonElement>('[data-shape="triad"]')!.click();
+    root.querySelector<HTMLSelectElement>('#midi-input')!.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(store.getState().shape).toBe('seventh');
+    expect(input.selectInput).not.toHaveBeenCalled();
+  });
+
+  it('cancels a pending gamepad notification timeout', () => {
+    vi.useFakeTimers();
+    try {
+      const { app, root } = createAppFixture();
+      app.setGamepadStatus('ready');
+      expect(vi.getTimerCount()).toBe(1);
+
+      app.dispose();
+      app.dispose();
+
+      expect(vi.getTimerCount()).toBe(0);
+      expect(root.querySelector<HTMLElement>('#gamepad-notification')!.hidden).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
 
 const readyInput: MidiInputSnapshot = {
   status: 'ready', message: 'Connected to Keyboard.',

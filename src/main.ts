@@ -2,6 +2,8 @@ import './styles.css';
 import { WebAudioSynthSink } from './audio/synth';
 import { GamepadInput, type FrameScheduler, type GamepadEventTarget, type GamepadNavigator } from './input/gamepad';
 import { KeyboardInput, type KeyboardEventTarget } from './input/keyboard';
+import { createApplicationDisposer } from './lifecycle/application-disposer';
+import { CleanupStack } from './lifecycle/cleanup-stack';
 import { handlePageHide } from './lifecycle/page-lifecycle';
 import { WebMidiAccess } from './midi/midi-access';
 import { WebMidiInputManager } from './midi/midi-input';
@@ -33,13 +35,16 @@ const midiInput = new WebMidiInputManager(
   { storage: safeLocalStorage() },
 );
 const cleanupDestinationLifecycle = bindDestinationLifecycle(output, midi, (action) => store.dispatch(action));
-// Retained for the app-wide cleanup stack introduced in Task 2.
-void cleanupDestinationLifecycle;
-
 const app = new App(root, store, midi, output, synth, midiInput, midiAccess);
+const resources = new CleanupStack();
+resources.add(cleanupDestinationLifecycle);
+resources.add(() => app.dispose());
+resources.add(() => midi.dispose());
+resources.add(() => midiInput.dispose());
+
 void midiAccess.restoreIfPermitted();
-new KeyboardInput(window as unknown as KeyboardEventTarget, (action) => store.dispatch(action)).attach();
-new GamepadInput(
+resources.add(new KeyboardInput(window as unknown as KeyboardEventTarget, (action) => store.dispatch(action)).attach());
+resources.add(new GamepadInput(
   window as unknown as GamepadEventTarget,
   navigator as unknown as GamepadNavigator,
   {
@@ -48,14 +53,21 @@ new GamepadInput(
   } satisfies FrameScheduler,
   (action) => store.dispatch(action),
   (status) => app.setGamepadStatus(status),
-).attach();
+).attach());
 
 const panic = () => store.dispatch({ type: 'panic' });
-window.addEventListener('blur', panic);
-window.addEventListener('pagehide', (event) => handlePageHide(event, midiInput, midi, panic));
-document.addEventListener('visibilitychange', () => {
+const dispose = createApplicationDisposer(resources, panic);
+const onPageHide = (event: PageTransitionEvent) => handlePageHide(event, dispose, panic);
+const onVisibilityChange = () => {
   if (document.visibilityState === 'hidden') panic();
-});
+};
+window.addEventListener('blur', panic);
+resources.add(() => window.removeEventListener('blur', panic));
+window.addEventListener('pagehide', onPageHide);
+resources.add(() => window.removeEventListener('pagehide', onPageHide));
+document.addEventListener('visibilitychange', onVisibilityChange);
+resources.add(() => document.removeEventListener('visibilitychange', onVisibilityChange));
+import.meta.hot?.dispose(dispose);
 
 function safeLocalStorage(): Storage | null {
   try {

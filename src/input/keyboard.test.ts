@@ -4,12 +4,14 @@ import type { InstrumentAction } from '../state/instrument';
 
 class FakeKeyboardTarget implements KeyboardEventTarget {
   readonly listeners = new Map<string, Set<(event: KeyboardEventLike) => void>>();
+  readonly removals: string[] = [];
   addEventListener(type: 'keydown' | 'keyup', listener: (event: KeyboardEventLike) => void): void {
     const group = this.listeners.get(type) ?? new Set();
     group.add(listener);
     this.listeners.set(type, group);
   }
   removeEventListener(type: 'keydown' | 'keyup', listener: (event: KeyboardEventLike) => void): void {
+    this.removals.push(type);
     this.listeners.get(type)?.delete(listener);
   }
   emit(type: 'keydown' | 'keyup', code: string, repeat = false): void {
@@ -37,5 +39,18 @@ describe('KeyboardInput', () => {
       { type: 'step-program', direction: -1 },
       { type: 'step-program', direction: 1 },
     ]);
+  });
+
+  it('detaches listeners once even when detach is repeated', () => {
+    const target = new FakeKeyboardTarget();
+    const actions: InstrumentAction[] = [];
+    const detach = new KeyboardInput(target, (action) => actions.push(action)).attach();
+
+    detach();
+    detach();
+    target.emit('keydown', 'KeyA');
+
+    expect(target.removals).toEqual(['keydown', 'keyup']);
+    expect(actions).toEqual([]);
   });
 });
