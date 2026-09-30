@@ -159,6 +159,29 @@ describe('App disposal', () => {
 });
 
 describe('DOM event boundaries', () => {
+  it('blurs every select in the rendered App shell after change', () => {
+    const { root } = createAppFixture();
+    const selects = [...root.querySelectorAll<HTMLSelectElement>('select')];
+    expect(selects.length).toBeGreaterThan(2);
+    for (const select of selects) {
+      select.disabled = false;
+      select.focus();
+      expect(document.activeElement).toBe(select);
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      expect(document.activeElement).not.toBe(select);
+    }
+  });
+
+  it('plays a valid chord pointer through the rendered App shell', () => {
+    const { root, store } = createAppFixture();
+    const chord = root.querySelector<HTMLButtonElement>('[data-degree="1"]')!;
+    chord.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 7 }));
+    expect(Object.keys(store.getState().active)).toEqual(['pointer:7']);
+    expect(root.querySelector('#currently-sounding')?.textContent).toContain('C3');
+    chord.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 7 }));
+    expect(Object.keys(store.getState().active)).toEqual([]);
+  });
+
   it('ignores invalid voice parameters without changing synth parameters', () => {
     const { root, synth } = createAppFixture();
     const setParams = vi.spyOn(synth, 'setParams');

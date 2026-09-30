@@ -18,7 +18,7 @@ interface CachedPad {
 
 export class InstrumentView {
   readonly #cleanup = new CleanupStack();
-  readonly #pointerOwners = new Map<number, string>();
+  readonly #pointerOwners = new Map<number, { owner: string; button: HTMLButtonElement }>();
   readonly #tonic: HTMLSelectElement;
   readonly #mode: HTMLSelectElement;
   readonly #shapeControls: HTMLElement;
@@ -87,18 +87,19 @@ export class InstrumentView {
         event.preventDefault();
         button.setPointerCapture(pointer.pointerId);
         const owner = `pointer:${pointer.pointerId}`;
-        this.#pointerOwners.set(pointer.pointerId, owner);
+        this.#pointerOwners.set(pointer.pointerId, { owner, button });
         this.store.dispatch({ type: 'press', owner, degree });
       });
       const releasePointer = (event: Event) => {
         const pointer = event as PointerEvent;
-        const owner = this.#pointerOwners.get(pointer.pointerId);
-        if (!owner) return;
+        const pointerOwner = this.#pointerOwners.get(pointer.pointerId);
+        if (!pointerOwner) return;
         this.#pointerOwners.delete(pointer.pointerId);
-        this.store.dispatch({ type: 'release', owner });
+        this.store.dispatch({ type: 'release', owner: pointerOwner.owner });
       };
       this.#listen(this.#chordGrid, 'pointerup', releasePointer);
       this.#listen(this.#chordGrid, 'pointercancel', releasePointer);
+      this.#listen(this.#chordGrid, 'lostpointercapture', releasePointer);
       this.#listen(this.#panic, 'click', () => this.store.dispatch({ type: 'panic' }));
       this.#listen(this.#previousProgram, 'click', () => this.store.dispatch({ type: 'step-program', direction: -1 }));
       this.#listen(this.#nextProgram, 'click', () => this.store.dispatch({ type: 'step-program', direction: 1 }));
@@ -121,6 +122,9 @@ export class InstrumentView {
 
   dispose(): void {
     this.#cleanup.dispose();
+    for (const [pointerId, { button }] of this.#pointerOwners) {
+      if (button.hasPointerCapture(pointerId)) button.releasePointerCapture(pointerId);
+    }
     this.#pointerOwners.clear();
   }
 

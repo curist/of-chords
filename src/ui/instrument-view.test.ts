@@ -24,7 +24,55 @@ function fixture() {
   return { root, target, store, view };
 }
 
+function setSelectValue(select: HTMLSelectElement, value: string): void {
+  const option = document.createElement('option');
+  option.value = value;
+  select.add(option);
+  select.value = value;
+  expect(select.value).toBe(value);
+}
+
 describe('InstrumentView', () => {
+  it.each(['', ' ', 'NaN', 'Infinity', '1.5', '-1', '12'])('ignores invalid tonic %j', (value) => {
+    const { root, store } = fixture();
+    const dispatch = vi.spyOn(store, 'dispatch');
+    const select = root.querySelector<HTMLSelectElement>('#tonic-select')!;
+    setSelectValue(select, value);
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(store.getState().tonic).toBe(0);
+  });
+
+  it.each(['', ' ', '__proto__', 'unknown'])('ignores invalid mode %j', (value) => {
+    const { root, store } = fixture();
+    const dispatch = vi.spyOn(store, 'dispatch');
+    const select = root.querySelector<HTMLSelectElement>('#mode-select')!;
+    setSelectValue(select, value);
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(store.getState().mode).toBe('major');
+  });
+
+  it.each(['', ' ', 'NaN', 'Infinity', '1.5', '0', '129'])('blurs without dispatching invalid program %j', (value) => {
+    const { root, store } = fixture();
+    const dispatch = vi.spyOn(store, 'dispatch');
+    const input = root.querySelector<HTMLInputElement>('#program-input')!;
+    input.value = value;
+    input.focus();
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(document.activeElement).not.toBe(input);
+    expect(store.getState().program).toBeNull();
+  });
+
+  it.each([[1, 0], [128, 127]])('maps displayed program %i to zero-based program %i', (displayed, expected) => {
+    const { root, store } = fixture();
+    const input = root.querySelector<HTMLInputElement>('#program-input')!;
+    input.value = String(displayed);
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(store.getState().program).toBe(expected);
+  });
+
   it('renders chord pads, active chords, history, and idle copy', () => {
     const { root, store } = fixture();
     const pad = root.querySelector<HTMLButtonElement>('[data-degree="1"]')!;
@@ -138,6 +186,45 @@ describe('InstrumentView', () => {
     second.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 4 }));
     expect(Object.keys(store.getState().active)).toEqual([]);
     expect(target.release).toHaveBeenCalledTimes(2);
+  });
+
+  it('releases a held chord when pointer capture is lost', () => {
+    const { root, store, target } = fixture();
+    const pad = root.querySelector<HTMLButtonElement>('[data-degree="1"]')!;
+    pad.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 6 }));
+    expect(Object.keys(store.getState().active)).toEqual(['pointer:6']);
+
+    pad.dispatchEvent(new PointerEvent('lostpointercapture', { bubbles: true, pointerId: 6 }));
+
+    expect(Object.keys(store.getState().active)).toEqual([]);
+    expect(target.release).toHaveBeenCalledExactlyOnceWith('pointer:6');
+  });
+
+  it('releases only once if lost capture precedes pointerup and pointercancel', () => {
+    const { root, target } = fixture();
+    const pad = root.querySelector<HTMLButtonElement>('[data-degree="1"]')!;
+    pad.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 7 }));
+    pad.dispatchEvent(new PointerEvent('lostpointercapture', { bubbles: true, pointerId: 7 }));
+    expect(target.release).toHaveBeenCalledExactlyOnceWith('pointer:7');
+    pad.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 7 }));
+    pad.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 7 }));
+    expect(target.release).toHaveBeenCalledExactlyOnceWith('pointer:7');
+  });
+
+  it('detaches release listeners before freeing captures during disposal', () => {
+    const { root, view, store, target } = fixture();
+    const pad = root.querySelector<HTMLButtonElement>('[data-degree="1"]')!;
+    pad.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 8 }));
+    const releaseCapture = vi.spyOn(pad, 'releasePointerCapture').mockImplementation((pointerId) => {
+      pad.dispatchEvent(new PointerEvent('lostpointercapture', { bubbles: true, pointerId }));
+    });
+
+    view.dispose();
+    view.dispose();
+
+    expect(releaseCapture).toHaveBeenCalledExactlyOnceWith(8);
+    expect(target.release).not.toHaveBeenCalled();
+    expect(Object.keys(store.getState().active)).toEqual(['pointer:8']);
   });
 
   it('removes pointer listeners on dispose without releasing active sound', () => {
