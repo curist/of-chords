@@ -148,10 +148,13 @@ describe('WebMidiInputManager', () => {
     await h.access.initialize();
     h.manager.selectInput('one');
     expect(h.values.get('webchords.midi-input-id')).toBe('one');
+    expect(h.values.get('webchords.midi-input-label')).toBe('Input one · Maker');
     send(first, [0x90, 60, 80]);
     h.inputs.splice(0, 1);
     h.browserAccess.onstatechange?.();
-    expect(h.manager.snapshot()).toMatchObject({ status: 'disconnected', preferredInputId: 'one', attachedInputId: null });
+    expect(h.manager.snapshot()).toMatchObject({
+      status: 'disconnected', preferredInputId: 'one', preferredInputLabel: 'Input one · Maker', attachedInputId: null,
+    });
     expect(h.values.get('webchords.midi-input-id')).toBe('one');
     expect(first.onmidimessage).toBeNull();
     expect(h.store.getState().active['midi:one:ch:0:note:60']).toBeUndefined();
@@ -162,6 +165,7 @@ describe('WebMidiInputManager', () => {
     h.manager.selectInput(null);
     expect(h.manager.snapshot()).toMatchObject({ preferredInputId: null, attachedInputId: null });
     expect(h.values.has('webchords.midi-input-id')).toBe(false);
+    expect(h.values.has('webchords.midi-input-label')).toBe(false);
   });
 
   it('restores stored input and disposes without affecting shared access', async () => {

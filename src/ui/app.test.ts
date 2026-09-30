@@ -35,7 +35,8 @@ function createAppFixture() {
   const store = new InstrumentStore({ acquire() {}, release() {}, panic() {}, programChange() {} });
   let inputListener: (snapshot: MidiInputSnapshot) => void = () => {};
   const initialInput: MidiInputSnapshot = {
-    status: 'idle', message: 'MIDI access has not been requested.', inputs: [], preferredInputId: null, attachedInputId: null,
+    status: 'idle', message: 'MIDI access has not been requested.', inputs: [],
+    preferredInputId: null, preferredInputLabel: null, attachedInputId: null,
   };
   const input = {
     selectInput: vi.fn(), resume: vi.fn(),
@@ -57,7 +58,7 @@ const readyInput: MidiInputSnapshot = {
     { id: 'keyboard', name: 'Keyboard', manufacturer: 'Acme', state: 'connected' },
     { id: 'pads', name: 'Pads', manufacturer: '', state: 'connected' },
   ],
-  preferredInputId: 'keyboard', attachedInputId: 'keyboard',
+  preferredInputId: 'keyboard', preferredInputLabel: 'Keyboard · Acme', attachedInputId: 'keyboard',
 };
 
 describe('tonic selection', () => {
@@ -183,7 +184,7 @@ describe('MIDI input controls', () => {
     emitInput({ ...readyInput, status: 'disconnected', message: 'Preferred MIDI input disconnected.',
       inputs: [readyInput.inputs[1]], attachedInputId: null });
     expect(select.value).toBe('keyboard');
-    expect(select.selectedOptions[0].textContent).toContain('disconnected');
+    expect(select.selectedOptions[0].textContent).toBe('Keyboard · Acme (disconnected)');
 
     emitInput({ ...readyInput, status: 'requesting', message: 'Requesting MIDI access…', attachedInputId: null });
     expect(select.disabled).toBe(true);

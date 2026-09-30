@@ -35,6 +35,7 @@ export interface MidiInputSnapshot {
   readonly message: string;
   readonly inputs: readonly MidiPortInfo[];
   readonly preferredInputId: string | null;
+  readonly preferredInputLabel: string | null;
   readonly attachedInputId: string | null;
 }
 
@@ -44,6 +45,7 @@ export interface MidiInputOptions {
 }
 
 const STORAGE_KEY = 'webchords.midi-input-id';
+const LABEL_STORAGE_KEY = 'webchords.midi-input-label';
 const SUSPENDED_MESSAGE = 'Possible MIDI feedback loop detected. Check MIDI routing, then resume input.';
 
 export class WebMidiInputManager {
@@ -78,6 +80,7 @@ export class WebMidiInputManager {
       message: this.#message,
       inputs: this.access.snapshot().inputs,
       preferredInputId: this.#preferredInputId,
+      preferredInputLabel: this.#input ? this.#inputLabel(this.#input) : this.#storageGet(LABEL_STORAGE_KEY),
       attachedInputId: this.#input?.id ?? null,
     };
   }
@@ -94,7 +97,8 @@ export class WebMidiInputManager {
     if (id === null) {
       this.#storageRemove();
     } else {
-      this.#storageSet(id);
+      const input = this.access.findInput(id);
+      this.#storageSet(id, input ? this.#inputLabel(input) : id);
     }
     this.#refresh(this.access.snapshot());
   }
@@ -207,16 +211,26 @@ export class WebMidiInputManager {
     this.#cleanupCandidates.clear();
   }
 
-  #storageGet(): string | null {
-    try { return this.#storage?.getItem(STORAGE_KEY) ?? null; } catch { return null; }
+  #inputLabel(input: MidiInputPortLike): string {
+    return `${input.name ?? 'Unnamed MIDI input'}${input.manufacturer ? ` · ${input.manufacturer}` : ''}`;
   }
 
-  #storageSet(id: string): void {
-    try { this.#storage?.setItem(STORAGE_KEY, id); } catch { /* Storage is optional. */ }
+  #storageGet(key = STORAGE_KEY): string | null {
+    try { return this.#storage?.getItem(key) ?? null; } catch { return null; }
+  }
+
+  #storageSet(id: string, label: string): void {
+    try {
+      this.#storage?.setItem(STORAGE_KEY, id);
+      this.#storage?.setItem(LABEL_STORAGE_KEY, label);
+    } catch { /* Storage is optional. */ }
   }
 
   #storageRemove(): void {
-    try { this.#storage?.removeItem(STORAGE_KEY); } catch { /* Storage is optional. */ }
+    try {
+      this.#storage?.removeItem(STORAGE_KEY);
+      this.#storage?.removeItem(LABEL_STORAGE_KEY);
+    } catch { /* Storage is optional. */ }
   }
 
   #emit(): void {

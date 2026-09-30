@@ -363,7 +363,10 @@ export class App {
       input.id,
     ));
     if (snapshot.preferredInputId && !snapshot.inputs.some((input) => input.id === snapshot.preferredInputId)) {
-      inputOptions.push(new Option('Preferred input (disconnected)', snapshot.preferredInputId));
+      inputOptions.push(new Option(
+        `${snapshot.preferredInputLabel ?? snapshot.preferredInputId} (disconnected)`,
+        snapshot.preferredInputId,
+      ));
     }
     select.replaceChildren(emptyOption, ...inputOptions);
     select.value = snapshot.preferredInputId ?? '';
