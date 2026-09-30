@@ -1,6 +1,7 @@
 import { scaleDegreeForPitchClass } from '../music/scales';
 import type { InstrumentAction, InstrumentState } from '../state/instrument';
 import { WebMidiAccess, type MidiAccessSnapshot, type MidiInputPortLike, type MidiPortInfo, type MidiStatus } from './midi-access';
+import { PersistedDevicePreference } from './device-preference';
 import { getOptionalStorage, type StorageLike } from './storage';
 
 export interface MidiNoteMessage {
@@ -59,7 +60,7 @@ export class WebMidiInputManager {
   readonly #cleanupCandidates = new Set<string>();
   readonly #listeners = new Set<(snapshot: MidiInputSnapshot) => void>();
   readonly #unsubscribeAccess: () => void;
-  readonly #storage: StorageLike | null;
+  readonly #preference: PersistedDevicePreference;
   readonly #now: () => number;
 
   constructor(
@@ -68,9 +69,13 @@ export class WebMidiInputManager {
     private readonly dispatch: (action: InstrumentAction) => void,
     options: MidiInputOptions = {},
   ) {
-    this.#storage = options.storage === undefined ? getOptionalStorage() : options.storage;
+    this.#preference = new PersistedDevicePreference(
+      options.storage === undefined ? getOptionalStorage() : options.storage,
+      STORAGE_KEY,
+      LABEL_STORAGE_KEY,
+    );
     this.#now = options.now ?? (() => performance.now());
-    this.#preferredInputId = this.#storageGet();
+    this.#preferredInputId = this.#preference.id();
     this.#unsubscribeAccess = access.subscribe((snapshot) => this.#onAccessSnapshot(snapshot));
   }
 
@@ -80,7 +85,7 @@ export class WebMidiInputManager {
       message: this.#message,
       inputs: this.access.snapshot().inputs,
       preferredInputId: this.#preferredInputId,
-      preferredInputLabel: this.#input ? this.#inputLabel(this.#input) : this.#storageGet(LABEL_STORAGE_KEY),
+      preferredInputLabel: this.#input ? this.#inputLabel(this.#input) : this.#preference.label(),
       attachedInputId: this.#input?.id ?? null,
     };
   }
@@ -95,10 +100,10 @@ export class WebMidiInputManager {
     if (this.#disposed) return;
     this.#preferredInputId = id;
     if (id === null) {
-      this.#storageRemove();
+      this.#preference.clear();
     } else {
       const input = this.access.findInput(id);
-      this.#storageSet(id, input ? this.#inputLabel(input) : id);
+      this.#preference.set(id, input ? this.#inputLabel(input) : id);
     }
     this.#refresh(this.access.snapshot());
   }
@@ -213,24 +218,6 @@ export class WebMidiInputManager {
 
   #inputLabel(input: MidiInputPortLike): string {
     return `${input.name ?? 'Unnamed MIDI input'}${input.manufacturer ? ` · ${input.manufacturer}` : ''}`;
-  }
-
-  #storageGet(key = STORAGE_KEY): string | null {
-    try { return this.#storage?.getItem(key) ?? null; } catch { return null; }
-  }
-
-  #storageSet(id: string, label: string): void {
-    try {
-      this.#storage?.setItem(STORAGE_KEY, id);
-      this.#storage?.setItem(LABEL_STORAGE_KEY, label);
-    } catch { /* Storage is optional. */ }
-  }
-
-  #storageRemove(): void {
-    try {
-      this.#storage?.removeItem(STORAGE_KEY);
-      this.#storage?.removeItem(LABEL_STORAGE_KEY);
-    } catch { /* Storage is optional. */ }
   }
 
   #emit(): void {

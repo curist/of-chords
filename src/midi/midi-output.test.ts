@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { WebMidiAccess } from './midi-access';
-import { getOptionalStorage, WebMidiOutputManager } from './midi-output';
+import { WebMidiOutputManager } from './midi-output';
+import { getOptionalStorage } from './storage';
 
 interface FakeOutput {
   readonly id: string;
@@ -141,12 +142,69 @@ describe('WebMidiOutputManager failure boundaries', () => {
     expect(manager.snapshot()).toMatchObject({
       selectedOutputId: null, preferredOutputId: 'one', preferredOutputLabel: 'Synth · Acme',
     });
+    expect(Object.fromEntries(stored)).toEqual({
+      'webchords.midi-output-id': 'one',
+      'webchords.midi-output-label': 'Synth · Acme',
+    });
 
     const restored = new WebMidiOutputManager(fakeNavigator(fakeAccess([])), storage);
     await restored.initialize();
     expect(restored.snapshot()).toMatchObject({
       selectedOutputId: null, preferredOutputId: 'one', preferredOutputLabel: 'Synth · Acme',
     });
+
+    restored.selectOutput(null);
+    expect(Object.fromEntries(stored)).toEqual({});
+    expect(restored.snapshot()).toMatchObject({ selectedOutputId: null, preferredOutputId: null, preferredOutputLabel: null });
+  });
+
+  it('still stores the output label and emits selection when the ID write fails', async () => {
+    const output = { id: 'one', name: 'Synth', state: 'connected' as const, send() {} };
+    const values = new Map<string, string>();
+    const attempts: string[] = [];
+    const manager = new WebMidiOutputManager(fakeNavigator(fakeAccess([output])), {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => {
+        attempts.push(key);
+        if (key === 'webchords.midi-output-id') throw new Error('write blocked');
+        values.set(key, value);
+      },
+      removeItem: (key) => { values.delete(key); },
+    });
+    await manager.initialize();
+    const snapshots = vi.fn();
+    manager.subscribe(snapshots);
+
+    expect(() => manager.selectOutput('one')).not.toThrow();
+    expect(attempts).toEqual(['webchords.midi-output-id', 'webchords.midi-output-label']);
+    expect(values.get('webchords.midi-output-label')).toBe('Synth');
+    expect(manager.snapshot()).toMatchObject({ selectedOutputId: 'one', preferredOutputId: 'one' });
+    expect(snapshots).toHaveBeenLastCalledWith(expect.objectContaining({ selectedOutputId: 'one' }));
+  });
+
+  it('still removes the output label and emits deselection when ID removal fails', async () => {
+    const output = { id: 'one', name: 'Synth', state: 'connected' as const, send() {} };
+    const values = new Map<string, string>();
+    const attempts: string[] = [];
+    const manager = new WebMidiOutputManager(fakeNavigator(fakeAccess([output])), {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => { values.set(key, value); },
+      removeItem: (key) => {
+        attempts.push(key);
+        if (key === 'webchords.midi-output-id') throw new Error('removal blocked');
+        values.delete(key);
+      },
+    });
+    await manager.initialize();
+    manager.selectOutput('one');
+    const snapshots = vi.fn();
+    manager.subscribe(snapshots);
+
+    expect(() => manager.selectOutput(null)).not.toThrow();
+    expect(attempts).toEqual(['webchords.midi-output-id', 'webchords.midi-output-label']);
+    expect(values.has('webchords.midi-output-label')).toBe(false);
+    expect(manager.snapshot()).toMatchObject({ selectedOutputId: null, message: 'No MIDI output selected.' });
+    expect(snapshots).toHaveBeenLastCalledWith(expect.objectContaining({ selectedOutputId: null }));
   });
 
   it('contains send failures and requests lifecycle cleanup', async () => {

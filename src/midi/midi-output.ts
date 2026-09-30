@@ -1,8 +1,7 @@
 import type { NoteSink } from './note-ledger';
 import { WebMidiAccess, type MidiAccessSnapshot, type MidiOutputPortLike, type MidiPortInfo, type MidiStatus } from './midi-access';
+import { PersistedDevicePreference } from './device-preference';
 import { getOptionalStorage, type StorageLike } from './storage';
-
-export { getOptionalStorage, type StorageLike };
 
 export interface MidiOutputSnapshot {
   readonly status: MidiStatus;
@@ -26,11 +25,13 @@ export class WebMidiOutputManager implements NoteSink {
   #cleanupScheduled = false;
   readonly #listeners = new Set<(snapshot: MidiOutputSnapshot) => void>();
   readonly #unsubscribeAccess: () => void;
+  readonly #preference: PersistedDevicePreference;
 
   constructor(
     private readonly access: WebMidiAccess,
-    private readonly storage: StorageLike | null = getOptionalStorage(),
+    storage: StorageLike | null = getOptionalStorage(),
   ) {
+    this.#preference = new PersistedDevicePreference(storage, STORAGE_KEY, LABEL_STORAGE_KEY);
     this.#unsubscribeAccess = access.subscribe((snapshot) => this.#onAccessSnapshot(snapshot));
   }
 
@@ -40,8 +41,8 @@ export class WebMidiOutputManager implements NoteSink {
       message: this.#message,
       outputs: this.access.snapshot().outputs,
       selectedOutputId: this.#output?.id ?? null,
-      preferredOutputId: this.#output?.id ?? this.#storageGet(),
-      preferredOutputLabel: this.#output ? this.#outputLabel(this.#output) : this.#storageGet(LABEL_STORAGE_KEY),
+      preferredOutputId: this.#output?.id ?? this.#preference.id(),
+      preferredOutputLabel: this.#output ? this.#outputLabel(this.#output) : this.#preference.label(),
     };
   }
 
@@ -80,10 +81,10 @@ export class WebMidiOutputManager implements NoteSink {
     const nextOutput = id ? this.access.findOutput(id) : null;
     this.#changeOutput(nextOutput);
     if (this.#output) {
-      this.#storageSet(this.#output.id, this.#outputLabel(this.#output));
+      this.#preference.set(this.#output.id, this.#outputLabel(this.#output));
       this.#message = `Connected to ${this.#output.name ?? 'MIDI output'}.`;
     } else {
-      this.#storageRemove();
+      this.#preference.clear();
       this.#message = this.#status === 'ready' ? 'No MIDI output selected.' : this.#message;
     }
     this.#emit();
@@ -117,7 +118,7 @@ export class WebMidiOutputManager implements NoteSink {
   }
 
   #refreshSelection(snapshot: MidiAccessSnapshot): void {
-    const remembered = this.#storageGet();
+    const remembered = this.#preference.id();
     const selectedId = this.#output?.id ?? remembered;
     const nextOutput = selectedId ? this.access.findOutput(selectedId) : null;
     this.#changeOutput(nextOutput);
@@ -163,24 +164,6 @@ export class WebMidiOutputManager implements NoteSink {
 
   #outputLabel(output: MidiOutputPortLike): string {
     return `${output.name ?? 'Unnamed MIDI output'}${output.manufacturer ? ` · ${output.manufacturer}` : ''}`;
-  }
-
-  #storageGet(key = STORAGE_KEY): string | null {
-    try { return this.storage?.getItem(key) ?? null; } catch { return null; }
-  }
-
-  #storageSet(id: string, label: string): void {
-    try {
-      this.storage?.setItem(STORAGE_KEY, id);
-      this.storage?.setItem(LABEL_STORAGE_KEY, label);
-    } catch { /* Preference storage is optional. */ }
-  }
-
-  #storageRemove(): void {
-    try {
-      this.storage?.removeItem(STORAGE_KEY);
-      this.storage?.removeItem(LABEL_STORAGE_KEY);
-    } catch { /* Preference storage is optional. */ }
   }
 
   #emit(): void {

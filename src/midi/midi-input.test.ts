@@ -8,13 +8,27 @@ function input(id: string): MidiInputPortLike {
   return { id, name: `Input ${id}`, manufacturer: 'Maker', state: 'connected', onmidimessage: null };
 }
 
-function setup(inputs: MidiInputPortLike[] = [input('keys')], initialPreference: string | null = null, clock = () => 0) {
+function setup(
+  inputs: MidiInputPortLike[] = [input('keys')],
+  initialPreference: string | null = null,
+  clock = () => 0,
+  storageFailures: { set?: string; remove?: string } = {},
+) {
   const values = new Map<string, string>();
+  const storageAttempts: string[] = [];
   if (initialPreference) values.set('webchords.midi-input-id', initialPreference);
   const storage = {
     getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => { values.set(key, value); },
-    removeItem: (key: string) => { values.delete(key); },
+    setItem: (key: string, value: string) => {
+      storageAttempts.push(`set:${key}`);
+      if (key === storageFailures.set) throw new Error('write blocked');
+      values.set(key, value);
+    },
+    removeItem: (key: string) => {
+      storageAttempts.push(`remove:${key}`);
+      if (key === storageFailures.remove) throw new Error('removal blocked');
+      values.delete(key);
+    },
   };
   const browserAccess: MidiAccessLike = {
     inputs: { forEach(callback) { inputs.forEach(callback); } },
@@ -35,7 +49,7 @@ function setup(inputs: MidiInputPortLike[] = [input('keys')], initialPreference:
     actions.push(action);
     store.dispatch(action);
   }, { storage, now: clock });
-  return { inputs, browserAccess, access, manager, values, store, effects, actions, harmonyReads: () => harmonyReads };
+  return { inputs, browserAccess, access, manager, values, storageAttempts, store, effects, actions, harmonyReads: () => harmonyReads };
 }
 
 function send(port: MidiInputPortLike, data: number[]): void {
@@ -156,6 +170,7 @@ describe('WebMidiInputManager', () => {
       status: 'disconnected', preferredInputId: 'one', preferredInputLabel: 'Input one · Maker', attachedInputId: null,
     });
     expect(h.values.get('webchords.midi-input-id')).toBe('one');
+    expect(h.values.get('webchords.midi-input-label')).toBe('Input one · Maker');
     expect(first.onmidimessage).toBeNull();
     expect(h.store.getState().active['midi:one:ch:0:note:60']).toBeUndefined();
     h.inputs.push(input('one'));
@@ -166,6 +181,37 @@ describe('WebMidiInputManager', () => {
     expect(h.manager.snapshot()).toMatchObject({ preferredInputId: null, attachedInputId: null });
     expect(h.values.has('webchords.midi-input-id')).toBe(false);
     expect(h.values.has('webchords.midi-input-label')).toBe(false);
+  });
+
+  it('still stores the input label and emits selection when the ID write fails', async () => {
+    const h = setup([input('keys')], null, () => 0, { set: 'webchords.midi-input-id' });
+    await h.access.initialize();
+    const snapshots = vi.fn();
+    h.manager.subscribe(snapshots);
+
+    expect(() => h.manager.selectInput('keys')).not.toThrow();
+    expect(h.storageAttempts).toEqual([
+      'set:webchords.midi-input-id', 'set:webchords.midi-input-label',
+    ]);
+    expect(h.values.get('webchords.midi-input-label')).toBe('Input keys · Maker');
+    expect(h.manager.snapshot()).toMatchObject({ preferredInputId: 'keys', attachedInputId: 'keys' });
+    expect(snapshots).toHaveBeenLastCalledWith(expect.objectContaining({ attachedInputId: 'keys' }));
+  });
+
+  it('still removes the input label and emits deselection when ID removal fails', async () => {
+    const h = setup([input('keys')], null, () => 0, { remove: 'webchords.midi-input-id' });
+    await h.access.initialize();
+    h.manager.selectInput('keys');
+    const snapshots = vi.fn();
+    h.manager.subscribe(snapshots);
+
+    expect(() => h.manager.selectInput(null)).not.toThrow();
+    expect(h.storageAttempts.slice(-2)).toEqual([
+      'remove:webchords.midi-input-id', 'remove:webchords.midi-input-label',
+    ]);
+    expect(h.values.has('webchords.midi-input-label')).toBe(false);
+    expect(h.manager.snapshot()).toMatchObject({ preferredInputId: null, attachedInputId: null });
+    expect(snapshots).toHaveBeenLastCalledWith(expect.objectContaining({ attachedInputId: null }));
   });
 
   it('restores stored input and disposes without affecting shared access', async () => {
