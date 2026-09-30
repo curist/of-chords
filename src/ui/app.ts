@@ -395,9 +395,7 @@ export class App {
     pill.dataset.status = snapshot.status;
     pill.querySelector('b')!.textContent = snapshot.status === 'suspended'
       ? 'MIDI In suspended'
-      : snapshot.status === 'disconnected'
-        ? 'MIDI In disconnected'
-        : attached ? `MIDI In · ${attached.name}` : 'MIDI In';
+      : attached ? `MIDI In · ${attached.name}` : 'MIDI In';
   }
 
   #renderOutput(snapshot: OutputSnapshot): void {
@@ -426,10 +424,13 @@ export class App {
     }
     const midi = this.#latestMidi;
     const selected = midi?.outputs.find((output) => output.id === midi.selectedOutputId);
-    pill.dataset.status = midi?.status ?? 'idle';
-    pill.querySelector('b')!.textContent = selected
-      ? `MIDI Out · ${selected.name}`
-      : midi?.status === 'ready' ? 'MIDI Out ready' : 'MIDI Out';
+    const disconnected = midi?.status === 'ready'
+      && midi.preferredOutputId !== null
+      && midi.selectedOutputId === null;
+    pill.dataset.status = disconnected ? 'disconnected' : midi?.status ?? 'idle';
+    let label = midi?.status === 'ready' && !disconnected ? 'MIDI Out ready' : 'MIDI Out';
+    if (selected) label = `MIDI Out · ${selected.name}`;
+    pill.querySelector('b')!.textContent = label;
     message.textContent = midi?.message ?? 'Requesting MIDI access…';
   }
 

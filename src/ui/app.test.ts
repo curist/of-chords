@@ -247,6 +247,34 @@ describe('routing status', () => {
     expect(root.querySelector('#output-message')?.closest('[hidden]')).toBeNull();
   });
 
+  it('uses the warning color instead of a long label when the preferred output disappears', () => {
+    const { root, output, emitOutput } = createAppFixture();
+    output.setMode('midi');
+    emitOutput({
+      status: 'ready', message: 'Preferred MIDI output disconnected.', outputs: [],
+      selectedOutputId: null, preferredOutputId: 'synth', preferredOutputLabel: 'Synth · Acme',
+    });
+
+    const status = root.querySelector<HTMLElement>('#output-status-pill')!;
+    expect(status.dataset.status).toBe('disconnected');
+    expect(status.textContent).toBe('MIDI Out');
+  });
+
+  it('uses the warning color instead of status text when the preferred input disappears', () => {
+    const { root, emitInput } = createAppFixture();
+    emitInput({
+      ...readyInput,
+      status: 'disconnected',
+      message: 'Preferred MIDI input disconnected.',
+      inputs: [readyInput.inputs[1]],
+      attachedInputId: null,
+    });
+
+    const status = root.querySelector<HTMLElement>('#input-status-pill')!;
+    expect(status.dataset.status).toBe('disconnected');
+    expect(status.textContent).toBe('MIDI In');
+  });
+
   it('keeps MIDI input warnings visible in the header and input panel', () => {
     const { root, emitInput } = createAppFixture();
     emitInput({
