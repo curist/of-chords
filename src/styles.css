@@ -72,6 +72,7 @@ kbd { display: inline-grid; place-items: center; min-width: 28px; min-height: 27
 .status-pill span { width: 8px; height: 8px; border-radius: 50%; background: #706a5f; }
 .status-pill[data-status="ready"] span { background: #83c36c; box-shadow: 0 0 9px #83c36c; }
 .status-pill[data-status="disconnected"] span, .status-pill[data-status="suspended"] span { background: #e6b84b; box-shadow: 0 0 9px rgba(230,184,75,.55); }
+.status-pill[data-status="denied"] span, .status-pill[data-status="error"] span { background: #d86458; box-shadow: 0 0 9px rgba(216,100,88,.55); }
 .controller-toast { position: fixed; z-index: 10; top: 18px; left: 50%; display: flex; align-items: center; gap: 9px; padding: 11px 16px; border: 1px solid #514b3d; border-radius: 999px; background: #25231e; box-shadow: 0 12px 32px rgba(0,0,0,.35); color: #f4f1e8; font-size: 13px; transform: translateX(-50%); }
 .controller-toast[hidden] { display: none; }
 .controller-toast span { width: 8px; height: 8px; border-radius: 50%; background: #e6b84b; box-shadow: 0 0 9px #e6b84b; }
