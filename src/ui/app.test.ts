@@ -64,6 +64,57 @@ function createAppFixture() {
 }
 
 describe('App disposal', () => {
+  it('disposes constructed views and control listeners if a later store subscription throws', () => {
+    const root = document.createElement('div');
+    document.body.replaceChildren(root);
+    vi.stubGlobal('Option', function Option(label: string, value: string) {
+      const option = document.createElement('option');
+      option.textContent = label;
+      option.value = value;
+      return option;
+    });
+    const synth = new WebAudioSynthSink();
+    const unsubscribeMidi = vi.fn();
+    const midi = {
+      selectOutput: vi.fn(), subscribe(listener: (snapshot: MidiOutputSnapshot) => void) {
+        listener({ status: 'idle', message: 'MIDI access has not been requested.', outputs: [],
+          selectedOutputId: null, preferredOutputId: null, preferredOutputLabel: null });
+        return unsubscribeMidi;
+      },
+      noteOn() {}, noteOff() {}, allNotesOff() {}, programChange() {},
+    };
+    const output = new OutputController(synth, midi, { storage: null });
+    const unsubscribeOutput = vi.fn();
+    const originalOutputSubscribe = output.subscribe.bind(output);
+    vi.spyOn(output, 'subscribe').mockImplementation((listener) => {
+      const unsubscribe = originalOutputSubscribe(listener);
+      return () => { unsubscribeOutput(); unsubscribe(); };
+    });
+    const store = new InstrumentStore({ acquire() {}, release() {}, panic() {}, programChange() {} });
+    vi.spyOn(store, 'subscribe').mockImplementation(() => { throw new Error('store subscribe failed'); });
+    const unsubscribeInput = vi.fn();
+    const input = {
+      selectInput: vi.fn(), resume: vi.fn(), subscribe(listener: (snapshot: MidiInputSnapshot) => void) {
+        listener({ status: 'idle', message: 'MIDI access has not been requested.', inputs: [],
+          preferredInputId: null, preferredInputLabel: null, attachedInputId: null });
+        return unsubscribeInput;
+      },
+    };
+    const access = { initialize: vi.fn(async () => {}) };
+
+    expect(() => new App(root, store, midi as unknown as WebMidiOutputManager, output, synth,
+      input as unknown as WebMidiInputManager, access as unknown as WebMidiAccess)).toThrow('store subscribe failed');
+    root.querySelector<HTMLButtonElement>('[data-shape="seventh"]')!.click();
+    root.querySelector<HTMLButtonElement>('[data-output="midi"]')!.click();
+    root.querySelector<HTMLButtonElement>('#midi-input-action')!.click();
+    expect(store.getState().shape).toBe('triad');
+    expect(output.mode).toBe('builtin');
+    expect(access.initialize).not.toHaveBeenCalled();
+    expect(unsubscribeMidi).toHaveBeenCalledOnce();
+    expect(unsubscribeInput).toHaveBeenCalledOnce();
+    expect(unsubscribeOutput).toHaveBeenCalledOnce();
+  });
+
   it('unsubscribes all four sources exactly once', () => {
     const fixture = createAppFixture();
 

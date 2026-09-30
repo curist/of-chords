@@ -61,6 +61,46 @@ function createFixture() {
 }
 
 describe('OutputView', () => {
+  it('cleans MIDI subscription and DOM listeners when output subscription throws', () => {
+    const root = document.createElement('div');
+    document.body.replaceChildren(root);
+    root.innerHTML = `<div id="output-status-pill"><b></b></div><p id="output-message"></p>
+      <div id="output-mode"><button data-output="builtin">Built-in voice</button><button data-output="midi">MIDI device</button></div>
+      <button id="panic" data-output-panel="midi">Panic</button>
+      <div class="output-midi" data-output-panel="midi"><select id="midi-output"><option value="">No output selected</option><option value="synth">Synth</option></select></div>`;
+    vi.stubGlobal('Option', function Option(label: string, value: string) {
+      const option = document.createElement('option');
+      option.textContent = label;
+      option.value = value;
+      return option;
+    });
+    const unsubscribeMidi = vi.fn();
+    let emitMidi: (snapshot: MidiOutputSnapshot) => void = () => {};
+    const midi = {
+      selectOutput: vi.fn(),
+      subscribe(listener: (snapshot: MidiOutputSnapshot) => void) {
+        emitMidi = listener;
+        return unsubscribeMidi;
+      },
+    };
+    const output = { setMode: vi.fn(), subscribe: () => { throw new Error('output subscribe failed'); } };
+    const access = { initialize: vi.fn(async () => {}) };
+
+    expect(() => new OutputView(root, output as unknown as OutputController,
+      midi as unknown as WebMidiOutputManager, access)).toThrow('output subscribe failed');
+    const select = root.querySelector<HTMLSelectElement>('#midi-output')!;
+    select.value = 'synth';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    root.querySelector<HTMLButtonElement>('[data-output="midi"]')!.click();
+    emitMidi(connectedMidi);
+    expect(select.value).toBe('synth');
+    expect(select.options).toHaveLength(2);
+    expect(midi.selectOutput).not.toHaveBeenCalled();
+    expect(output.setMode).not.toHaveBeenCalled();
+    expect(access.initialize).not.toHaveBeenCalled();
+    expect(unsubscribeMidi).toHaveBeenCalledOnce();
+  });
+
   it('requests MIDI access before selecting MIDI mode and ignores invalid modes', () => {
     const { root, events, output, access } = createFixture();
     const button = root.querySelector<HTMLButtonElement>('[data-output="midi"]')!;

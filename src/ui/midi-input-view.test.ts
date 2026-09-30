@@ -46,6 +46,24 @@ function createFixture() {
 }
 
 describe('MidiInputView', () => {
+  it('removes DOM listeners when input subscription throws during construction', () => {
+    const root = document.createElement('div');
+    document.body.replaceChildren(root);
+    root.innerHTML = `<div id="input-status-pill"><b></b></div>
+      <p id="midi-input-message"></p><select id="midi-input"><option value="">No input</option><option value="pads">Pads</option></select>
+      <button id="midi-input-action">Connect input</button>`;
+    const input = { selectInput: vi.fn(), resume: vi.fn(), subscribe: () => { throw new Error('input subscribe failed'); } };
+    const access = { initialize: vi.fn(async () => {}) };
+
+    expect(() => new MidiInputView(root, input as unknown as WebMidiInputManager, access)).toThrow('input subscribe failed');
+    const select = root.querySelector<HTMLSelectElement>('#midi-input')!;
+    select.value = 'pads';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    root.querySelector<HTMLButtonElement>('#midi-input-action')!.click();
+    expect(input.selectInput).not.toHaveBeenCalled();
+    expect(access.initialize).not.toHaveBeenCalled();
+  });
+
   it('renders connected, disconnected, requesting, and suspended input states', () => {
     const { root, emit } = createFixture();
     const select = root.querySelector<HTMLSelectElement>('#midi-input')!;

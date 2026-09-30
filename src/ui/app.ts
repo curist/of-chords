@@ -105,17 +105,22 @@ export class App {
     private readonly midiInput: WebMidiInputManager,
     private readonly midiAccess: Pick<WebMidiAccess, 'initialize'>,
   ) {
-    this.#renderShell();
-    this.#gamepadNotification = new GamepadNotification(
-      requireElement<HTMLElement>(this.root, '#gamepad-notification'),
-    );
-    this.#cleanup.add(() => this.#gamepadNotification.dispose());
-    const midiInputView = new MidiInputView(this.root, this.midiInput, this.midiAccess);
-    this.#cleanup.add(() => midiInputView.dispose());
-    const outputView = new OutputView(this.root, this.output, this.midi, this.midiAccess);
-    this.#cleanup.add(() => outputView.dispose());
-    this.#bindControls();
-    this.#cleanup.add(this.store.subscribe((state) => this.#renderInstrument(state)));
+    try {
+      this.#renderShell();
+      this.#gamepadNotification = new GamepadNotification(
+        requireElement<HTMLElement>(this.root, '#gamepad-notification'),
+      );
+      this.#cleanup.add(() => this.#gamepadNotification.dispose());
+      const midiInputView = new MidiInputView(this.root, this.midiInput, this.midiAccess);
+      this.#cleanup.add(() => midiInputView.dispose());
+      const outputView = new OutputView(this.root, this.output, this.midi, this.midiAccess);
+      this.#cleanup.add(() => outputView.dispose());
+      this.#bindControls();
+      this.#cleanup.add(this.store.subscribe((state) => this.#renderInstrument(state)));
+    } catch (error) {
+      this.#cleanup.dispose();
+      throw error;
+    }
   }
 
   dispose(): void {

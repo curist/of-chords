@@ -22,14 +22,19 @@ export class MidiInputView {
     this.#message = requireElement(root, '#midi-input-message');
     this.#pill = requireElement(root, '#input-status-pill');
     this.#pillLabel = requireElement(this.#pill, 'b');
-    this.#listen(this.#select, 'change', () => this.midiInput.selectInput(this.#select.value || null));
-    this.#listen(this.#action, 'click', () => {
-      if (this.#latest?.status === 'suspended') this.midiInput.resume();
-      else void this.midiAccess.initialize();
-    });
-    this.#cleanup.add(this.midiInput.subscribe((snapshot) => {
-      if (!this.#cleanup.disposed) this.#render(snapshot);
-    }));
+    try {
+      this.#listen(this.#select, 'change', () => this.midiInput.selectInput(this.#select.value || null));
+      this.#listen(this.#action, 'click', () => {
+        if (this.#latest?.status === 'suspended') this.midiInput.resume();
+        else void this.midiAccess.initialize();
+      });
+      this.#cleanup.add(this.midiInput.subscribe((snapshot) => {
+        if (!this.#cleanup.disposed) this.#render(snapshot);
+      }));
+    } catch (error) {
+      this.#cleanup.dispose();
+      throw error;
+    }
   }
 
   dispose(): void {

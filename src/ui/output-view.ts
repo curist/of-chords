@@ -37,20 +37,25 @@ export class OutputView {
     this.#message = requireElement(root, '#output-message');
     this.#pill = requireElement(root, '#output-status-pill');
     this.#pillLabel = requireElement(this.#pill, 'b');
-    this.#listen(this.#modeControl, 'click', (event) => {
-      const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-output]') : null;
-      const mode = parseOutputMode(button?.dataset.output ?? '');
-      if (mode === null) return;
-      if (mode === 'midi') void this.midiAccess.initialize();
-      this.output.setMode(mode);
-    });
-    this.#listen(this.#select, 'change', () => this.midi.selectOutput(this.#select.value || null));
-    this.#cleanup.add(this.midi.subscribe((snapshot) => {
-      if (!this.#cleanup.disposed) this.#renderMidi(snapshot);
-    }));
-    this.#cleanup.add(this.output.subscribe((snapshot) => {
-      if (!this.#cleanup.disposed) this.#renderOutput(snapshot);
-    }));
+    try {
+      this.#listen(this.#modeControl, 'click', (event) => {
+        const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-output]') : null;
+        const mode = parseOutputMode(button?.dataset.output ?? '');
+        if (mode === null) return;
+        if (mode === 'midi') void this.midiAccess.initialize();
+        this.output.setMode(mode);
+      });
+      this.#listen(this.#select, 'change', () => this.midi.selectOutput(this.#select.value || null));
+      this.#cleanup.add(this.midi.subscribe((snapshot) => {
+        if (!this.#cleanup.disposed) this.#renderMidi(snapshot);
+      }));
+      this.#cleanup.add(this.output.subscribe((snapshot) => {
+        if (!this.#cleanup.disposed) this.#renderOutput(snapshot);
+      }));
+    } catch (error) {
+      this.#cleanup.dispose();
+      throw error;
+    }
   }
 
   dispose(): void {
