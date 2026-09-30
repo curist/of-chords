@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from 'vitest';
-import { App, commitVoiceSelection, GamepadNotification } from './app';
+import { App, GamepadNotification } from './app';
 import { InstrumentStore } from '../state/store';
 import { WebAudioSynthSink } from '../audio/synth';
 import { OutputController } from '../output/output-controller';
@@ -19,6 +19,7 @@ function createAppFixture() {
     return option;
   });
   const synth = new WebAudioSynthSink();
+  vi.spyOn(synth, 'resume').mockResolvedValue();
   const outputSnapshot = {
     status: 'idle', message: 'MIDI access has not been requested.', outputs: [],
     selectedOutputId: null, preferredOutputId: null, preferredOutputLabel: null,
@@ -49,15 +50,20 @@ function createAppFixture() {
     status: 'idle', message: 'MIDI access has not been requested.', inputs: [],
     preferredInputId: null, preferredInputLabel: null, attachedInputId: null,
   };
+  let emitInput: (snapshot: MidiInputSnapshot) => void = () => {};
   const input = {
     selectInput: vi.fn(), resume: vi.fn(),
-    subscribe(listener: (snapshot: MidiInputSnapshot) => void) { listener(initialInput); return unsubscribeInput; },
+    subscribe(listener: (snapshot: MidiInputSnapshot) => void) {
+      emitInput = listener;
+      listener(initialInput);
+      return unsubscribeInput;
+    },
   };
   const access = { initialize: vi.fn(async () => {}) };
   const app = new App(root, store, midi as unknown as WebMidiOutputManager, output, synth,
     input as unknown as WebMidiInputManager, access as unknown as WebMidiAccess);
   return {
-    app, root, store, output, input, access, synth,
+    app, root, store, output, input, access, synth, emitInput,
     unsubscribeStore, unsubscribeMidi, unsubscribeInput, unsubscribeOutput,
   };
 }
@@ -123,7 +129,7 @@ describe('App disposal', () => {
     expect(fixture.unsubscribeStore).toHaveBeenCalledOnce();
     expect(fixture.unsubscribeMidi).toHaveBeenCalledOnce();
     expect(fixture.unsubscribeInput).toHaveBeenCalledOnce();
-    expect(fixture.unsubscribeOutput).toHaveBeenCalledOnce();
+    expect(fixture.unsubscribeOutput).toHaveBeenCalledTimes(2);
   });
 
   it('removes control listeners so root events no longer change the instrument', () => {
@@ -151,7 +157,9 @@ describe('App disposal', () => {
       app.dispose();
 
       expect(vi.getTimerCount()).toBe(0);
-      expect(root.querySelector<HTMLElement>('#gamepad-notification')!.hidden).toBe(false);
+      expect(root.querySelector<HTMLElement>('#gamepad-notification')!.hidden).toBe(true);
+      app.setGamepadStatus('activating');
+      expect(root.querySelector<HTMLElement>('#gamepad-notification')!.hidden).toBe(true);
     } finally {
       vi.useRealTimers();
     }
@@ -159,6 +167,17 @@ describe('App disposal', () => {
 });
 
 describe('DOM event boundaries', () => {
+  it('renders all main instrument sections and their controls', () => {
+    const { root } = createAppFixture();
+    for (const selector of [
+      '.hero', '.setup', '.play-section', '.readout-grid', '.input-panel', '.output-panel',
+      '.voice-panel', '#gamepad-notification', '#tonic-select', '#mode-select',
+      '#chord-grid', '#midi-input', '#midi-output', '#panic', '#voice-reset',
+    ]) {
+      expect(root.querySelector(selector), selector).not.toBeNull();
+    }
+  });
+
   it('blurs every select in the rendered App shell after change', () => {
     const { root } = createAppFixture();
     const selects = [...root.querySelectorAll<HTMLSelectElement>('select')];
@@ -182,20 +201,6 @@ describe('DOM event boundaries', () => {
     expect(Object.keys(store.getState().active)).toEqual([]);
   });
 
-  it('ignores invalid voice parameters without changing synth parameters', () => {
-    const { root, synth } = createAppFixture();
-    const setParams = vi.spyOn(synth, 'setParams');
-    const input = root.querySelector<HTMLInputElement>('[data-voice-param="harmonicMix"]')!;
-    input.max = '2';
-    input.value = '1.5';
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    const select = root.querySelector<HTMLSelectElement>('[data-voice-param="oscillator"]')!;
-    select.dataset.voiceParam = '__proto__';
-    select.dispatchEvent(new Event('input', { bubbles: true }));
-    expect(setParams).not.toHaveBeenCalled();
-    expect(synth.params.harmonicMix).toBe(0.18);
-  });
-
   it('commits valid output values through their events', () => {
     const { root, output, access } = createAppFixture();
     root.querySelector<HTMLButtonElement>('[data-output="midi"]')!.click();
@@ -203,20 +208,38 @@ describe('DOM event boundaries', () => {
     expect(access.initialize).toHaveBeenCalledOnce();
   });
 
-  it('commits valid voice values through their events', () => {
-    const { root, synth } = createAppFixture();
-    const mix = root.querySelector<HTMLInputElement>('[data-voice-param="harmonicMix"]')!;
-    mix.value = '0.4';
-    mix.dispatchEvent(new Event('input', { bubbles: true }));
-    const oscillator = root.querySelector<HTMLSelectElement>('[data-voice-param="oscillator"]')!;
-    oscillator.value = 'square';
-    oscillator.dispatchEvent(new Event('input', { bubbles: true }));
-    expect(synth.params.harmonicMix).toBe(0.4);
-    expect(synth.params.oscillator).toBe('square');
-  });
 });
 
 describe('MIDI input controls', () => {
+  it('renders connected, suspended, and disconnected input states in the full App shell', () => {
+    const { root, emitInput } = createAppFixture();
+    const input = root.querySelector<HTMLSelectElement>('#midi-input')!;
+    const action = root.querySelector<HTMLButtonElement>('#midi-input-action')!;
+    const pill = root.querySelector<HTMLElement>('#input-status-pill')!;
+    const connected: MidiInputSnapshot = {
+      status: 'ready', message: 'Connected to Keyboard.',
+      inputs: [{ id: 'keyboard', name: 'Keyboard', manufacturer: 'Acme', state: 'connected' }],
+      preferredInputId: 'keyboard', preferredInputLabel: 'Keyboard · Acme', attachedInputId: 'keyboard',
+    };
+
+    emitInput(connected);
+    expect(input.value).toBe('keyboard');
+    expect(pill.textContent).toBe('MIDI In · Keyboard');
+    expect(action.hidden).toBe(true);
+
+    emitInput({ ...connected, status: 'suspended', attachedInputId: null,
+      message: 'Possible MIDI feedback loop detected.' });
+    expect(action.hidden).toBe(false);
+    expect(action.textContent).toBe('Resume input');
+    expect(pill.textContent).toBe('MIDI In suspended');
+
+    emitInput({ ...connected, status: 'disconnected', inputs: [], attachedInputId: null,
+      message: 'Preferred MIDI input disconnected.' });
+    expect(input.selectedOptions[0].textContent).toBe('Keyboard · Acme (disconnected)');
+    expect(pill.dataset.status).toBe('disconnected');
+    expect(pill.textContent).toBe('MIDI In');
+  });
+
   it('places MIDI input in its own panel outside sound output', () => {
     const { root, output } = createAppFixture();
     const input = root.querySelector<HTMLSelectElement>('#midi-input');
@@ -243,6 +266,18 @@ describe('MIDI input controls', () => {
       .map((button) => button.textContent)).toEqual(['Built-in voice', 'MIDI device']);
   });
 
+});
+
+describe('voice tuning composition', () => {
+  it('follows output mode changes in the rendered App', () => {
+    const { root, output } = createAppFixture();
+    const panel = root.querySelector<HTMLElement>('.voice-panel')!;
+    expect(panel.hidden).toBe(false);
+    output.setMode('midi');
+    expect(panel.hidden).toBe(true);
+    output.setMode('builtin');
+    expect(panel.hidden).toBe(false);
+  });
 });
 
 describe('gamepad status', () => {
@@ -286,16 +321,5 @@ describe('gamepad status', () => {
 
     expect(cleared).toEqual([7]);
     expect(target.hidden).toBe(true);
-  });
-});
-
-describe('voice waveform selection', () => {
-  it('applies the waveform', () => {
-    const select = { value: 'square' } as HTMLSelectElement;
-    const values: string[] = [];
-
-    commitVoiceSelection(select, (value) => values.push(value));
-
-    expect(values).toEqual(['square']);
   });
 });

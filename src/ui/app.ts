@@ -1,5 +1,4 @@
 import type { WebAudioSynthSink } from '../audio/synth';
-import { DEFAULT_VOICE, parseVoiceParam, VOICE_PARAM_RANGES, WAVEFORMS, type VoiceParams } from '../audio/voice-params';
 import { CHORD_BINDINGS } from '../config';
 import { describeGamepadStatus, type GamepadInputStatus } from '../input/gamepad';
 import { CleanupStack } from '../lifecycle/cleanup-stack';
@@ -14,36 +13,36 @@ import { requireElement } from './dom';
 import { InstrumentView } from './instrument-view';
 import { MidiInputView } from './midi-input-view';
 import { OutputView } from './output-view';
-
-export function commitVoiceSelection(
-  select: HTMLSelectElement,
-  apply: (value: string) => void,
-): void {
-  apply(select.value);
-}
+import { VoiceTuningView } from './voice-tuning-view';
 
 type ScheduleDismiss = (callback: () => void, delay: number) => number;
 type CancelDismiss = (id: number) => void;
 
 export class GamepadNotification {
   #dismissId: number | null = null;
+  #disposed = false;
+  readonly #label: HTMLElement;
 
   constructor(
     private readonly target: HTMLElement,
     private readonly scheduleDismiss: ScheduleDismiss = (callback, delay) => window.setTimeout(callback, delay),
     private readonly cancelDismiss: CancelDismiss = (id) => window.clearTimeout(id),
-  ) {}
+  ) {
+    this.#label = requireElement(target, 'b');
+  }
 
   update(status: GamepadInputStatus): void {
+    if (this.#disposed) return;
     if (this.#dismissId !== null) {
       this.cancelDismiss(this.#dismissId);
       this.#dismissId = null;
     }
     this.target.dataset.status = status;
     this.target.hidden = status === 'hidden';
-    this.target.querySelector('b')!.textContent = describeGamepadStatus(status);
+    this.#label.textContent = describeGamepadStatus(status);
     if (status === 'ready') {
       this.#dismissId = this.scheduleDismiss(() => {
+        if (this.#disposed) return;
         this.target.hidden = true;
         this.#dismissId = null;
       }, 2000);
@@ -51,9 +50,13 @@ export class GamepadNotification {
   }
 
   dispose(): void {
-    if (this.#dismissId === null) return;
-    this.cancelDismiss(this.#dismissId);
-    this.#dismissId = null;
+    if (this.#disposed) return;
+    this.#disposed = true;
+    if (this.#dismissId !== null) {
+      this.cancelDismiss(this.#dismissId);
+      this.#dismissId = null;
+    }
+    this.target.hidden = true;
   }
 }
 
@@ -86,7 +89,13 @@ export class App {
       this.#cleanup.add(() => outputView.dispose());
       const instrumentView = new InstrumentView(this.root, this.store);
       this.#cleanup.add(() => instrumentView.dispose());
-      if (SHOW_VOICE_TUNING) this.#bindDevPanel();
+      if (SHOW_VOICE_TUNING) {
+        const voiceTuningView = new VoiceTuningView(this.root, this.synth);
+        this.#cleanup.add(() => voiceTuningView.dispose());
+        this.#cleanup.add(this.output.subscribe(({ mode }) => {
+          if (!this.#cleanup.disposed) voiceTuningView.setOutputMode(mode);
+        }));
+      }
     } catch (error) {
       this.#cleanup.dispose();
       throw error;
@@ -99,12 +108,6 @@ export class App {
 
   setGamepadStatus(status: GamepadInputStatus): void {
     this.#gamepadNotification.update(status);
-  }
-
-  #listen(target: EventTarget | null, type: string, listener: EventListener): void {
-    if (!target) return;
-    target.addEventListener(type, listener);
-    this.#cleanup.add(() => target.removeEventListener(type, listener));
   }
 
   #renderShell(): void {
@@ -191,56 +194,6 @@ export class App {
             </div>
           </div>
         </section>
-        ${SHOW_VOICE_TUNING ? this.#renderDevPanelMarkup() : ''}
       </main>`;
-  }
-
-  #renderDevPanelMarkup(): string {
-    const controls = VOICE_PARAM_RANGES.map((param) => {
-      if (param.kind === 'waveform') {
-        return `<label class="voice-field">${param.label}
-          <select data-voice-param="${param.key}">${WAVEFORMS.map((wave) => `<option value="${wave}">${wave}</option>`).join('')}</select>
-        </label>`;
-      }
-      return `<label class="voice-field">${param.label} <output data-voice-readout="${param.key}"></output>
-        <input type="range" data-voice-param="${param.key}" min="${param.min}" max="${param.max}" step="${param.step}">
-      </label>`;
-    }).join('');
-    return `
-      <section class="panel voice-panel" aria-labelledby="voice-heading">
-        <div class="voice-panel-head">
-          <div><p class="section-label">Development</p><h2 id="voice-heading">Voice tuning</h2><p>Shapes newly played notes. Dev build only.</p></div>
-          <button id="voice-reset" class="voice-reset">Reset defaults</button>
-        </div>
-        <div class="voice-grid">${controls}</div>
-      </section>`;
-  }
-
-  #bindDevPanel(): void {
-    this.#listen(requireElement(this.root, '.voice-panel'), 'input', (event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
-      const params = parseVoiceParam(target.dataset.voiceParam ?? '', target.value);
-      if (params === null) return;
-      this.synth.setParams(params);
-      this.#renderVoiceParams(this.synth.params);
-    });
-    this.#listen(requireElement(this.root, '#voice-reset'), 'click', () => {
-      this.synth.setParams(DEFAULT_VOICE);
-      this.#renderVoiceParams(DEFAULT_VOICE);
-    });
-    this.#renderVoiceParams(this.synth.params);
-  }
-
-  #renderVoiceParams(params: VoiceParams): void {
-    for (const param of VOICE_PARAM_RANGES) {
-      const value = params[param.key];
-      const control = this.root.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-voice-param="${param.key}"]`);
-      if (control) control.value = String(value);
-      if (param.kind === 'range') {
-        const readout = this.root.querySelector<HTMLOutputElement>(`[data-voice-readout="${param.key}"]`);
-        if (readout) readout.textContent = `${(value as number).toFixed(param.decimals ?? 2)}${param.unit ?? ''}`;
-      }
-    }
   }
 }

@@ -23,8 +23,7 @@ function createFixture() {
     <p id="output-message"></p>
     <div id="output-mode"><button data-output="builtin">Built-in voice</button><button data-output="midi">MIDI device</button></div>
     <button id="panic" data-output-panel="midi">Panic · All Notes Off</button>
-    <div class="output-midi" data-output-panel="midi"><select id="midi-output"><option value="">No output selected</option></select></div>
-    <section class="voice-panel">Voice tuning</section>`;
+    <div class="output-midi" data-output-panel="midi"><select id="midi-output"><option value="">No output selected</option></select></div>`;
   vi.stubGlobal('Option', function Option(label: string, value: string) {
     const option = document.createElement('option');
     option.textContent = label;
@@ -118,17 +117,14 @@ describe('OutputView', () => {
     const builtinButton = root.querySelector<HTMLButtonElement>('[data-output="builtin"]')!;
     const midiPanel = root.querySelector<HTMLElement>('.output-midi')!;
     const panic = root.querySelector<HTMLElement>('#panic')!;
-    const voicePanel = root.querySelector<HTMLElement>('.voice-panel')!;
     expect(builtinButton.classList.contains('selected')).toBe(true);
     expect(midiPanel.hidden).toBe(true);
     expect(panic.hidden).toBe(true);
-    expect(voicePanel.hidden).toBe(false);
     emitOutput({ mode: 'midi' });
     expect(midiButton.classList.contains('selected')).toBe(true);
     expect(builtinButton.classList.contains('selected')).toBe(false);
     expect(midiPanel.hidden).toBe(false);
     expect(panic.hidden).toBe(false);
-    expect(voicePanel.hidden).toBe(true);
   });
 
   it('renders connected and disconnected output choices and routes selection', () => {

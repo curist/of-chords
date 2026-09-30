@@ -9,7 +9,6 @@ export class OutputView {
   readonly #modeControl: HTMLElement;
   readonly #modeButtons: readonly HTMLButtonElement[];
   readonly #panels: readonly HTMLElement[];
-  readonly #voicePanel: HTMLElement | null;
   readonly #select: HTMLSelectElement;
   readonly #message: HTMLElement;
   readonly #pill: HTMLElement;
@@ -32,7 +31,6 @@ export class OutputView {
       requireElement(root, '#panic'),
       requireElement(root, '.output-midi'),
     ];
-    this.#voicePanel = root.querySelector<HTMLElement>('.voice-panel');
     this.#select = requireElement(root, '#midi-output');
     this.#message = requireElement(root, '#output-message');
     this.#pill = requireElement(root, '#output-status-pill');
@@ -95,7 +93,6 @@ export class OutputView {
       const panelMode = parseOutputMode(panel.dataset.outputPanel ?? '');
       if (panelMode !== null) panel.hidden = panelMode !== snapshot.mode;
     }
-    if (this.#voicePanel) this.#voicePanel.hidden = snapshot.mode !== 'builtin';
     this.#renderStatus();
   }
 
