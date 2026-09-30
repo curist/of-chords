@@ -1,5 +1,11 @@
 export type PitchClass = number;
 
+export function parsePitchClass(value: string): PitchClass | null {
+  if (value.trim() === '') return null;
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 && number <= 11 ? number : null;
+}
+
 const SHARP_NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
 
 export function normalizePitchClass(value: number): PitchClass {

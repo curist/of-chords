@@ -103,3 +103,16 @@ export const VOICE_PARAM_RANGES: readonly VoiceParamRange[] = [
   { key: 'reverbDamping', label: 'Reverb damping', kind: 'range', min: 0, max: 1, step: 0.01, decimals: 2 },
   { key: 'masterGain', label: 'Master gain', kind: 'range', min: 0, max: 1, step: 0.01, decimals: 2 },
 ];
+
+export function parseVoiceParam(key: string, value: string): Partial<VoiceParams> | null {
+  const range = VOICE_PARAM_RANGES.find((entry) => entry.key === key);
+  if (!range) return null;
+  if (range.kind === 'waveform') {
+    return WAVEFORMS.includes(value as Waveform) ? { [range.key]: value } : null;
+  }
+  if (value.trim() === '') return null;
+  const number = Number(value);
+  if (!Number.isFinite(number) || range.min === undefined || range.max === undefined
+    || number < range.min || number > range.max) return null;
+  return { [range.key]: number };
+}

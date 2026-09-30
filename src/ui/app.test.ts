@@ -60,7 +60,7 @@ function createAppFixture() {
   const app = new App(root, store, midi as unknown as WebMidiOutputManager, output, synth,
     input as unknown as WebMidiInputManager, access as unknown as WebMidiAccess);
   return {
-    app, root, store, output, input, access,
+    app, root, store, output, input, access, synth,
     unsubscribeStore, unsubscribeMidi, unsubscribeInput, unsubscribeOutput,
     emitOutput(snapshot: MidiOutputSnapshot) { outputListener(snapshot); },
     emitInput(snapshot: MidiInputSnapshot) { inputListener(snapshot); },
@@ -130,6 +130,12 @@ describe('tonic selection', () => {
 
     expect(actions).toEqual([{ type: 'set-tonic', tonic: 7 }]);
   });
+
+  it.each(['', ' ', 'NaN', 'Infinity', '12'])('ignores invalid tonic %j', (value) => {
+    const actions: InstrumentAction[] = [];
+    commitTonicSelection({ value } as HTMLSelectElement, (action) => actions.push(action));
+    expect(actions).toEqual([]);
+  });
 });
 
 describe('mode selection', () => {
@@ -140,6 +146,12 @@ describe('mode selection', () => {
     commitModeSelection(select, (action) => actions.push(action));
 
     expect(actions).toEqual([{ type: 'set-mode', mode: 'naturalMinor' }]);
+  });
+
+  it.each(['', ' ', '__proto__', 'unknown'])('ignores invalid mode %j', (value) => {
+    const actions: InstrumentAction[] = [];
+    commitModeSelection({ value } as HTMLSelectElement, (action) => actions.push(action));
+    expect(actions).toEqual([]);
   });
 });
 
@@ -171,6 +183,113 @@ describe('program selection', () => {
 
     expect(actions).toEqual([{ type: 'set-program', program: 40 }]);
     expect(blur).toHaveBeenCalledOnce();
+  });
+
+  it.each(['', ' ', 'NaN', 'Infinity', '1.5', '0', '129'])('blurs without dispatching invalid program %j', (value) => {
+    const blur = vi.fn();
+    const actions: InstrumentAction[] = [];
+    commitProgramSelection({ value, blur } as unknown as HTMLInputElement, (action) => actions.push(action));
+    expect(actions).toEqual([]);
+    expect(blur).toHaveBeenCalledOnce();
+  });
+});
+
+describe('DOM event boundaries', () => {
+  it.each([
+    ['#tonic-select', 'change', 'value', '12'],
+    ['#mode-select', 'change', 'value', '__proto__'],
+    ['[data-shape="triad"]', 'click', 'shape', '__proto__'],
+    ['[data-inversion="0"]', 'click', 'inversion', '1.5'],
+    ['#program-input', 'change', 'value', 'Infinity'],
+  ] as const)('ignores invalid %s %s', (selector, type, property, value) => {
+    const { root, store } = createAppFixture();
+    const dispatch = vi.spyOn(store, 'dispatch');
+    const element = root.querySelector<HTMLElement>(selector)!;
+    if (property === 'value') (element as HTMLInputElement | HTMLSelectElement).value = value;
+    else element.dataset[property] = value;
+
+    element.dispatchEvent(new Event(type, { bubbles: true }));
+
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('ignores an invalid chord degree without acquiring a pointer owner', () => {
+    const { root, store } = createAppFixture();
+    const dispatch = vi.spyOn(store, 'dispatch');
+    const button = root.querySelector<HTMLButtonElement>('[data-degree="1"]')!;
+    button.dataset.degree = '8';
+    button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 9 }));
+    button.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 9 }));
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('ignores invalid output mode without changing mode or requesting MIDI', () => {
+    const { root, output, access } = createAppFixture();
+    const setMode = vi.spyOn(output, 'setMode');
+    const button = root.querySelector<HTMLButtonElement>('[data-output="midi"]')!;
+    button.dataset.output = '__proto__';
+    button.click();
+    expect(output.mode).toBe('builtin');
+    expect(setMode).not.toHaveBeenCalled();
+    expect(access.initialize).not.toHaveBeenCalled();
+  });
+
+  it('ignores invalid voice parameters without changing synth parameters', () => {
+    const { root, synth } = createAppFixture();
+    const setParams = vi.spyOn(synth, 'setParams');
+    const input = root.querySelector<HTMLInputElement>('[data-voice-param="harmonicMix"]')!;
+    input.max = '2';
+    input.value = '1.5';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    const select = root.querySelector<HTMLSelectElement>('[data-voice-param="oscillator"]')!;
+    select.dataset.voiceParam = '__proto__';
+    select.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(setParams).not.toHaveBeenCalled();
+    expect(synth.params.harmonicMix).toBe(0.18);
+  });
+
+  it('commits valid shape, inversion, chord, and output values through their events', () => {
+    const { root, store, output, access } = createAppFixture();
+    root.querySelector<HTMLButtonElement>('[data-shape="seventh"]')!.click();
+    root.querySelector<HTMLButtonElement>('[data-inversion="1"]')!.click();
+    expect(store.getState().shape).toBe('seventh');
+    expect(store.getState().inversion).toBe(1);
+
+    const chord = root.querySelector<HTMLButtonElement>('[data-degree="1"]')!;
+    chord.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 7 }));
+    expect(Object.values(store.getState().active).some((gesture) => gesture.kind === 'chord' && gesture.degree === 1)).toBe(true);
+
+    root.querySelector<HTMLButtonElement>('[data-output="midi"]')!.click();
+    expect(output.mode).toBe('midi');
+    expect(access.initialize).toHaveBeenCalledOnce();
+  });
+
+  it('commits valid tonic, mode, program, and voice values through their events', () => {
+    const { root, store, synth } = createAppFixture();
+    const tonic = root.querySelector<HTMLSelectElement>('#tonic-select')!;
+    tonic.value = '7';
+    tonic.dispatchEvent(new Event('change', { bubbles: true }));
+    const mode = root.querySelector<HTMLSelectElement>('#mode-select')!;
+    mode.value = 'dorian';
+    mode.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(store.getState().tonic).toBe(7);
+    expect(store.getState().mode).toBe('dorian');
+
+    const program = root.querySelector<HTMLInputElement>('#program-input')!;
+    program.value = '41';
+    program.focus();
+    program.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(store.getState().program).toBe(40);
+    expect(document.activeElement).not.toBe(program);
+
+    const mix = root.querySelector<HTMLInputElement>('[data-voice-param="harmonicMix"]')!;
+    mix.value = '0.4';
+    mix.dispatchEvent(new Event('input', { bubbles: true }));
+    const oscillator = root.querySelector<HTMLSelectElement>('[data-voice-param="oscillator"]')!;
+    oscillator.value = 'square';
+    oscillator.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(synth.params.harmonicMix).toBe(0.4);
+    expect(synth.params.oscillator).toBe('square');
   });
 });
 

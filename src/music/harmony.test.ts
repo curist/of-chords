@@ -1,9 +1,47 @@
 import { describe, expect, it } from 'vitest';
-import type { ScaleDegree } from './chords';
+import { parseChordShape, parseInversion, parseScaleDegree, type ScaleDegree } from './chords';
 import { resolveChord } from './harmony';
-import { noteNames } from './notes';
-import { scaleDegreeForPitchClass, type Mode } from './scales';
+import { noteNames, parsePitchClass } from './notes';
+import { parseMode, scaleDegreeForPitchClass, type Mode } from './scales';
 import { voiceChord } from './voicing';
+
+describe('DOM harmony value parsers', () => {
+  it.each(Array.from({ length: 12 }, (_, value) => [String(value), value] as const))('accepts pitch class %s', (value, expected) => {
+    expect(parsePitchClass(value)).toBe(expected);
+  });
+
+  it.each(Array.from({ length: 7 }, (_, index) => [String(index + 1), index + 1] as const))('accepts scale degree %s', (value, expected) => {
+    expect(parseScaleDegree(value)).toBe(expected);
+  });
+
+  it.each(['triad', 'seventh', 'sus2', 'sus4'] as const)('accepts chord shape %s', (value) => {
+    expect(parseChordShape(value)).toBe(value);
+  });
+
+  it.each([0, 1, 2] as const)('accepts inversion %i', (value) => {
+    expect(parseInversion(String(value))).toBe(value);
+  });
+
+  it.each(['major', 'naturalMinor', 'harmonicMinor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian'] as const)('accepts mode %s', (value) => {
+    expect(parseMode(value)).toBe(value);
+  });
+
+  it.each([
+    [parsePitchClass, ['', ' ', '0.5', 'NaN', 'Infinity', '-1', '12', '__proto__']],
+    [parseScaleDegree, ['', ' ', '1.5', 'NaN', 'Infinity', '0', '8', '__proto__']],
+    [parseInversion, ['', ' ', '0.5', 'NaN', 'Infinity', '-1', '3', '__proto__']],
+  ] as const)('rejects malformed integer values', (parse, values) => {
+    for (const value of values) expect(parse(value)).toBeNull();
+  });
+
+  it.each(['', ' ', 'major ', 'unknown', '__proto__'])('rejects invalid mode %j', (value) => {
+    expect(parseMode(value)).toBeNull();
+  });
+
+  it.each(['', ' ', 'Triad', 'unknown', '__proto__'])('rejects invalid shape %j', (value) => {
+    expect(parseChordShape(value)).toBeNull();
+  });
+});
 
 describe('scale degree lookup', () => {
   it.each([

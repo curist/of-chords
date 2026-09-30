@@ -1,11 +1,12 @@
 import type { WebAudioSynthSink } from '../audio/synth';
-import { DEFAULT_VOICE, VOICE_PARAM_RANGES, WAVEFORMS, type VoiceParams } from '../audio/voice-params';
+import { DEFAULT_VOICE, parseVoiceParam, VOICE_PARAM_RANGES, WAVEFORMS, type VoiceParams } from '../audio/voice-params';
 import { CHORD_BINDINGS } from '../config';
 import { describeGamepadStatus, type GamepadInputStatus } from '../input/gamepad';
 import { CleanupStack } from '../lifecycle/cleanup-stack';
+import { parseChordShape, parseInversion, parseScaleDegree } from '../music/chords';
 import { resolveChord } from '../music/harmony';
-import { noteNames, TONIC_OPTIONS } from '../music/notes';
-import { MODE_OPTIONS, type Mode } from '../music/scales';
+import { noteNames, parsePitchClass, TONIC_OPTIONS } from '../music/notes';
+import { MODE_OPTIONS, parseMode } from '../music/scales';
 import { voiceChord } from '../music/voicing';
 import type { WebMidiAccess } from '../midi/midi-access';
 import type { WebMidiInputManager, MidiInputSnapshot } from '../midi/midi-input';
@@ -13,26 +14,32 @@ import type { WebMidiOutputManager, MidiOutputSnapshot } from '../midi/midi-outp
 import type { OutputController, OutputMode, OutputSnapshot } from '../output/output-controller';
 import type { ActiveGesture, InstrumentAction, InstrumentState } from '../state/instrument';
 import type { InstrumentStore } from '../state/store';
+import { parseOutputMode, requireElement } from './dom';
 
 export function commitTonicSelection(
   select: HTMLSelectElement,
   dispatch: (action: InstrumentAction) => void,
 ): void {
-  dispatch({ type: 'set-tonic', tonic: Number(select.value) });
+  const tonic = parsePitchClass(select.value);
+  if (tonic !== null) dispatch({ type: 'set-tonic', tonic });
 }
 
 export function commitModeSelection(
   select: HTMLSelectElement,
   dispatch: (action: InstrumentAction) => void,
 ): void {
-  dispatch({ type: 'set-mode', mode: select.value as Mode });
+  const mode = parseMode(select.value);
+  if (mode !== null) dispatch({ type: 'set-mode', mode });
 }
 
 export function commitProgramSelection(
   input: HTMLInputElement,
   dispatch: (action: InstrumentAction) => void,
 ): void {
-  if (input.value.trim()) dispatch({ type: 'set-program', program: Number(input.value) - 1 });
+  const program = Number(input.value);
+  if (input.value.trim() !== '' && Number.isInteger(program) && program >= 1 && program <= 128) {
+    dispatch({ type: 'set-program', program: program - 1 });
+  }
   input.blur();
 }
 
@@ -122,7 +129,7 @@ export class App {
   ) {
     this.#renderShell();
     this.#gamepadNotification = new GamepadNotification(
-      this.root.querySelector<HTMLElement>('#gamepad-notification')!,
+      requireElement<HTMLElement>(this.root, '#gamepad-notification'),
     );
     this.#cleanup.add(() => this.#gamepadNotification.dispose());
     this.#bindControls();
@@ -259,29 +266,35 @@ export class App {
     this.#listen(this.root, 'change', (event) => {
       if (event.target instanceof HTMLSelectElement) event.target.blur();
     });
-    this.#listen(this.root.querySelector('#tonic-select'), 'change', (event) => {
-      commitTonicSelection(event.target as HTMLSelectElement, (action) => this.store.dispatch(action));
+    const tonic = requireElement<HTMLSelectElement>(this.root, '#tonic-select');
+    this.#listen(tonic, 'change', () => {
+      commitTonicSelection(tonic, (action) => this.store.dispatch(action));
     });
-    this.#listen(this.root.querySelector('#mode-select'), 'change', (event) => {
-      commitModeSelection(event.target as HTMLSelectElement, (action) => this.store.dispatch(action));
+    const mode = requireElement<HTMLSelectElement>(this.root, '#mode-select');
+    this.#listen(mode, 'change', () => {
+      commitModeSelection(mode, (action) => this.store.dispatch(action));
     });
-    this.#listen(this.root.querySelector('#shape-controls'), 'click', (event) => {
-      const button = (event.target as Element).closest<HTMLButtonElement>('[data-shape]');
-      if (button) this.store.dispatch({ type: 'set-shape', shape: button.dataset.shape as 'triad' | 'seventh' | 'sus2' | 'sus4' });
+    this.#listen(requireElement(this.root, '#shape-controls'), 'click', (event) => {
+      const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-shape]') : null;
+      const shape = parseChordShape(button?.dataset.shape ?? '');
+      if (shape !== null) this.store.dispatch({ type: 'set-shape', shape });
     });
-    this.#listen(this.root.querySelector('#inversion-controls'), 'click', (event) => {
-      const button = (event.target as Element).closest<HTMLButtonElement>('[data-inversion]');
-      if (button) this.store.dispatch({ type: 'set-inversion', inversion: Number(button.dataset.inversion) as 0 | 1 | 2 });
+    this.#listen(requireElement(this.root, '#inversion-controls'), 'click', (event) => {
+      const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-inversion]') : null;
+      const inversion = parseInversion(button?.dataset.inversion ?? '');
+      if (inversion !== null) this.store.dispatch({ type: 'set-inversion', inversion });
     });
-    this.#listen(this.root.querySelector('#chord-grid'), 'pointerdown', (event) => {
+    const chordGrid = requireElement(this.root, '#chord-grid');
+    this.#listen(chordGrid, 'pointerdown', (event) => {
       const pointer = event as PointerEvent;
-      const button = (event.target as Element).closest<HTMLButtonElement>('[data-degree]');
-      if (!button) return;
+      const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-degree]') : null;
+      const degree = parseScaleDegree(button?.dataset.degree ?? '');
+      if (!button || degree === null) return;
       event.preventDefault();
       button.setPointerCapture(pointer.pointerId);
       const owner = `pointer:${pointer.pointerId}`;
       this.#pointerOwners.set(pointer.pointerId, owner);
-      this.store.dispatch({ type: 'press', owner, degree: Number(button.dataset.degree) as 1 | 2 | 3 | 4 | 5 | 6 | 7 });
+      this.store.dispatch({ type: 'press', owner, degree });
     });
     const releasePointer = (event: Event) => {
       const pointer = event as PointerEvent;
@@ -290,28 +303,32 @@ export class App {
       this.#pointerOwners.delete(pointer.pointerId);
       this.store.dispatch({ type: 'release', owner });
     };
-    this.#listen(this.root.querySelector('#chord-grid'), 'pointerup', releasePointer);
-    this.#listen(this.root.querySelector('#chord-grid'), 'pointercancel', releasePointer);
-    this.#listen(this.root.querySelector('#output-mode'), 'click', (event) => {
-      const button = (event.target as Element).closest<HTMLButtonElement>('[data-output]');
-      if (button) activateOutputMode(button.dataset.output as OutputMode, this.midiAccess, this.output);
+    this.#listen(chordGrid, 'pointerup', releasePointer);
+    this.#listen(chordGrid, 'pointercancel', releasePointer);
+    this.#listen(requireElement(this.root, '#output-mode'), 'click', (event) => {
+      const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-output]') : null;
+      const outputMode = parseOutputMode(button?.dataset.output ?? '');
+      if (outputMode !== null) activateOutputMode(outputMode, this.midiAccess, this.output);
     });
-    this.#listen(this.root.querySelector('#midi-input'), 'change', (event) => {
-      activateMidiInput(this.midiInput, (event.target as HTMLSelectElement).value || null);
+    const midiInput = requireElement<HTMLSelectElement>(this.root, '#midi-input');
+    this.#listen(midiInput, 'change', () => {
+      activateMidiInput(this.midiInput, midiInput.value || null);
     });
-    this.#listen(this.root.querySelector('#midi-input-action'), 'click', () => {
+    this.#listen(requireElement(this.root, '#midi-input-action'), 'click', () => {
       if (this.#latestInput?.status === 'suspended') resumeMidiInput(this.midiInput);
       else void this.midiAccess.initialize();
     });
-    this.#listen(this.root.querySelector('#midi-output'), 'change', (event) => {
-      this.midi.selectOutput((event.target as HTMLSelectElement).value || null);
+    const midiOutput = requireElement<HTMLSelectElement>(this.root, '#midi-output');
+    this.#listen(midiOutput, 'change', () => {
+      this.midi.selectOutput(midiOutput.value || null);
     });
-    this.#listen(this.root.querySelector('#panic'), 'click', () => this.store.dispatch({ type: 'panic' }));
+    this.#listen(requireElement(this.root, '#panic'), 'click', () => this.store.dispatch({ type: 'panic' }));
     if (SHOW_VOICE_TUNING) this.#bindDevPanel();
-    this.#listen(this.root.querySelector('#previous-program'), 'click', () => this.store.dispatch({ type: 'step-program', direction: -1 }));
-    this.#listen(this.root.querySelector('#next-program'), 'click', () => this.store.dispatch({ type: 'step-program', direction: 1 }));
-    this.#listen(this.root.querySelector('#program-input'), 'change', (event) => {
-      commitProgramSelection(event.target as HTMLInputElement, (action) => this.store.dispatch(action));
+    this.#listen(requireElement(this.root, '#previous-program'), 'click', () => this.store.dispatch({ type: 'step-program', direction: -1 }));
+    this.#listen(requireElement(this.root, '#next-program'), 'click', () => this.store.dispatch({ type: 'step-program', direction: 1 }));
+    const programInput = requireElement<HTMLInputElement>(this.root, '#program-input');
+    this.#listen(programInput, 'change', () => {
+      commitProgramSelection(programInput, (action) => this.store.dispatch(action));
     });
   }
 
@@ -327,7 +344,8 @@ export class App {
       .filter((gesture) => gesture.kind === 'chord')
       .map((chord) => chord.degree));
     this.root.querySelectorAll<HTMLButtonElement>('.chord-pad').forEach((button) => {
-      const degree = Number(button.dataset.degree) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
+      const degree = parseScaleDegree(button.dataset.degree ?? '');
+      if (degree === null) return;
       const chord = resolveChord({ tonic: state.tonic, mode: state.mode, degree, shape: state.shape, inversion: state.inversion });
       const notes = voiceChord(chord, state.register);
       button.querySelector('.roman')!.textContent = chord.roman;
@@ -420,7 +438,8 @@ export class App {
       button.classList.toggle('selected', button.dataset.output === snapshot.mode);
     });
     this.root.querySelectorAll<HTMLElement>('[data-output-panel]').forEach((panel) => {
-      panel.hidden = !isOutputPanelVisible(panel.dataset.outputPanel as OutputMode, snapshot.mode);
+      const panelMode = parseOutputMode(panel.dataset.outputPanel ?? '');
+      if (panelMode !== null) panel.hidden = !isOutputPanelVisible(panelMode, snapshot.mode);
     });
     if (SHOW_VOICE_TUNING) {
       const voicePanel = this.root.querySelector<HTMLElement>('.voice-panel');
@@ -451,18 +470,15 @@ export class App {
   }
 
   #bindDevPanel(): void {
-    this.#listen(this.root.querySelector('.voice-panel'), 'input', (event) => {
-      const target = event.target as HTMLInputElement | HTMLSelectElement;
-      const key = target.dataset.voiceParam as keyof VoiceParams | undefined;
-      if (!key) return;
-      if (target instanceof HTMLSelectElement) {
-        commitVoiceSelection(target, (value) => this.synth.setParams({ [key]: value } as Partial<VoiceParams>));
-      } else {
-        this.synth.setParams({ [key]: Number(target.value) } as Partial<VoiceParams>);
-      }
+    this.#listen(requireElement(this.root, '.voice-panel'), 'input', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
+      const params = parseVoiceParam(target.dataset.voiceParam ?? '', target.value);
+      if (params === null) return;
+      this.synth.setParams(params);
       this.#renderVoiceParams(this.synth.params);
     });
-    this.#listen(this.root.querySelector('#voice-reset'), 'click', () => {
+    this.#listen(requireElement(this.root, '#voice-reset'), 'click', () => {
       this.synth.setParams(DEFAULT_VOICE);
       this.#renderVoiceParams(DEFAULT_VOICE);
     });

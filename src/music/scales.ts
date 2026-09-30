@@ -60,6 +60,10 @@ export const SCALES: Record<Mode, ScaleDefinition> = {
   },
 };
 
+export function parseMode(value: string): Mode | null {
+  return Object.prototype.hasOwnProperty.call(SCALES, value) ? value as Mode : null;
+}
+
 export const MODE_OPTIONS = (Object.entries(SCALES) as Array<[Mode, ScaleDefinition]>).map(([value, scale]) => ({
   value,
   name: scale.name,
