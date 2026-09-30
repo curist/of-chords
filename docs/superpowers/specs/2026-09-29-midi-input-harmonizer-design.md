@@ -174,6 +174,10 @@ key and the returned harmonization.
 
 ## UI and Persistence
 
+> **Later UI refinement:** MIDI Input was subsequently promoted into its own
+> Controller input panel, separate from Sound output. The independence described
+> below is unchanged; only its visual placement was superseded.
+
 The output panel gains a separate MIDI Input selector alongside the existing
 MIDI Output selector. Input controls remain available regardless of whether the
 active sound output is Built-in or MIDI. Before access is granted, the selector
