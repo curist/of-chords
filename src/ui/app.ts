@@ -3,47 +3,17 @@ import { DEFAULT_VOICE, parseVoiceParam, VOICE_PARAM_RANGES, WAVEFORMS, type Voi
 import { CHORD_BINDINGS } from '../config';
 import { describeGamepadStatus, type GamepadInputStatus } from '../input/gamepad';
 import { CleanupStack } from '../lifecycle/cleanup-stack';
-import { parseChordShape, parseInversion, parseScaleDegree } from '../music/chords';
-import { resolveChord } from '../music/harmony';
-import { noteNames, parsePitchClass, TONIC_OPTIONS } from '../music/notes';
-import { MODE_OPTIONS, parseMode } from '../music/scales';
-import { voiceChord } from '../music/voicing';
+import { TONIC_OPTIONS } from '../music/notes';
+import { MODE_OPTIONS } from '../music/scales';
 import type { WebMidiAccess } from '../midi/midi-access';
 import type { WebMidiInputManager } from '../midi/midi-input';
 import type { WebMidiOutputManager } from '../midi/midi-output';
 import type { OutputController } from '../output/output-controller';
-import type { ActiveGesture, InstrumentAction, InstrumentState } from '../state/instrument';
 import type { InstrumentStore } from '../state/store';
 import { requireElement } from './dom';
+import { InstrumentView } from './instrument-view';
 import { MidiInputView } from './midi-input-view';
 import { OutputView } from './output-view';
-
-export function commitTonicSelection(
-  select: HTMLSelectElement,
-  dispatch: (action: InstrumentAction) => void,
-): void {
-  const tonic = parsePitchClass(select.value);
-  if (tonic !== null) dispatch({ type: 'set-tonic', tonic });
-}
-
-export function commitModeSelection(
-  select: HTMLSelectElement,
-  dispatch: (action: InstrumentAction) => void,
-): void {
-  const mode = parseMode(select.value);
-  if (mode !== null) dispatch({ type: 'set-mode', mode });
-}
-
-export function commitProgramSelection(
-  input: HTMLInputElement,
-  dispatch: (action: InstrumentAction) => void,
-): void {
-  const program = Number(input.value);
-  if (input.value.trim() !== '' && Number.isInteger(program) && program >= 1 && program <= 128) {
-    dispatch({ type: 'set-program', program: program - 1 });
-  }
-  input.blur();
-}
 
 export function commitVoiceSelection(
   select: HTMLSelectElement,
@@ -93,7 +63,6 @@ const SHOW_VOICE_TUNING = import.meta.env.DEV;
 
 export class App {
   readonly #cleanup = new CleanupStack();
-  readonly #pointerOwners = new Map<number, string>();
   readonly #gamepadNotification: GamepadNotification;
 
   constructor(
@@ -115,8 +84,9 @@ export class App {
       this.#cleanup.add(() => midiInputView.dispose());
       const outputView = new OutputView(this.root, this.output, this.midi, this.midiAccess);
       this.#cleanup.add(() => outputView.dispose());
-      this.#bindControls();
-      this.#cleanup.add(this.store.subscribe((state) => this.#renderInstrument(state)));
+      const instrumentView = new InstrumentView(this.root, this.store);
+      this.#cleanup.add(() => instrumentView.dispose());
+      if (SHOW_VOICE_TUNING) this.#bindDevPanel();
     } catch (error) {
       this.#cleanup.dispose();
       throw error;
@@ -244,104 +214,6 @@ export class App {
         </div>
         <div class="voice-grid">${controls}</div>
       </section>`;
-  }
-
-  #bindControls(): void {
-    this.#listen(this.root, 'change', (event) => {
-      if (event.target instanceof HTMLSelectElement) event.target.blur();
-    });
-    const tonic = requireElement<HTMLSelectElement>(this.root, '#tonic-select');
-    this.#listen(tonic, 'change', () => {
-      commitTonicSelection(tonic, (action) => this.store.dispatch(action));
-    });
-    const mode = requireElement<HTMLSelectElement>(this.root, '#mode-select');
-    this.#listen(mode, 'change', () => {
-      commitModeSelection(mode, (action) => this.store.dispatch(action));
-    });
-    this.#listen(requireElement(this.root, '#shape-controls'), 'click', (event) => {
-      const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-shape]') : null;
-      const shape = parseChordShape(button?.dataset.shape ?? '');
-      if (shape !== null) this.store.dispatch({ type: 'set-shape', shape });
-    });
-    this.#listen(requireElement(this.root, '#inversion-controls'), 'click', (event) => {
-      const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-inversion]') : null;
-      const inversion = parseInversion(button?.dataset.inversion ?? '');
-      if (inversion !== null) this.store.dispatch({ type: 'set-inversion', inversion });
-    });
-    const chordGrid = requireElement(this.root, '#chord-grid');
-    this.#listen(chordGrid, 'pointerdown', (event) => {
-      const pointer = event as PointerEvent;
-      const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-degree]') : null;
-      const degree = parseScaleDegree(button?.dataset.degree ?? '');
-      if (!button || degree === null) return;
-      event.preventDefault();
-      button.setPointerCapture(pointer.pointerId);
-      const owner = `pointer:${pointer.pointerId}`;
-      this.#pointerOwners.set(pointer.pointerId, owner);
-      this.store.dispatch({ type: 'press', owner, degree });
-    });
-    const releasePointer = (event: Event) => {
-      const pointer = event as PointerEvent;
-      const owner = this.#pointerOwners.get(pointer.pointerId);
-      if (!owner) return;
-      this.#pointerOwners.delete(pointer.pointerId);
-      this.store.dispatch({ type: 'release', owner });
-    };
-    this.#listen(chordGrid, 'pointerup', releasePointer);
-    this.#listen(chordGrid, 'pointercancel', releasePointer);
-    this.#listen(requireElement(this.root, '#panic'), 'click', () => this.store.dispatch({ type: 'panic' }));
-    if (SHOW_VOICE_TUNING) this.#bindDevPanel();
-    this.#listen(requireElement(this.root, '#previous-program'), 'click', () => this.store.dispatch({ type: 'step-program', direction: -1 }));
-    this.#listen(requireElement(this.root, '#next-program'), 'click', () => this.store.dispatch({ type: 'step-program', direction: 1 }));
-    const programInput = requireElement<HTMLInputElement>(this.root, '#program-input');
-    this.#listen(programInput, 'change', () => {
-      commitProgramSelection(programInput, (action) => this.store.dispatch(action));
-    });
-  }
-
-  #renderInstrument(state: InstrumentState): void {
-    const tonic = this.root.querySelector<HTMLSelectElement>('#tonic-select');
-    if (tonic) tonic.value = String(state.tonic);
-    const mode = this.root.querySelector<HTMLSelectElement>('#mode-select');
-    if (mode) mode.value = state.mode;
-    this.root.querySelectorAll<HTMLButtonElement>('[data-shape]').forEach((button) => button.classList.toggle('selected', button.dataset.shape === state.shape));
-    this.root.querySelectorAll<HTMLButtonElement>('[data-inversion]').forEach((button) => button.classList.toggle('selected', Number(button.dataset.inversion) === state.inversion));
-
-    const activeDegrees = new Set(Object.values(state.active)
-      .filter((gesture) => gesture.kind === 'chord')
-      .map((chord) => chord.degree));
-    this.root.querySelectorAll<HTMLButtonElement>('.chord-pad').forEach((button) => {
-      const degree = parseScaleDegree(button.dataset.degree ?? '');
-      if (degree === null) return;
-      const chord = resolveChord({ tonic: state.tonic, mode: state.mode, degree, shape: state.shape, inversion: state.inversion });
-      const notes = voiceChord(chord, state.register);
-      button.querySelector('.roman')!.textContent = chord.roman;
-      button.querySelector('strong')!.textContent = chord.name;
-      button.querySelector('small')!.textContent = noteNames(chord.pitchClasses).join(' · ');
-      button.classList.toggle('active', activeDegrees.has(degree));
-      button.setAttribute('aria-pressed', String(activeDegrees.has(degree)));
-      button.title = `MIDI ${notes.join(', ')}`;
-    });
-
-    const active = Object.values(state.active);
-    const current = this.root.querySelector<HTMLElement>('#currently-sounding')!;
-    current.classList.toggle('empty-state', active.length === 0);
-    current.innerHTML = active.length === 0 ? 'Play a chord' : active.map((gesture) => this.#renderGesture(gesture)).join('');
-
-    const historyNames = this.root.querySelector<HTMLElement>('#history-names')!;
-    historyNames.classList.toggle('empty-state', state.history.length === 0);
-    historyNames.textContent = state.history.length ? state.history.map((chord) => chord.name).join(' → ') : 'No chords yet';
-    this.root.querySelector<HTMLElement>('#history-romans')!.textContent = state.history.map((chord) => chord.roman).join(' → ');
-
-    const programInput = this.root.querySelector<HTMLInputElement>('#program-input')!;
-    programInput.value = state.program === null ? '' : String(state.program + 1);
-  }
-
-  #renderGesture(gesture: ActiveGesture): string {
-    if (gesture.kind === 'literal') {
-      return `<div class="sounding-chord"><div><strong>${gesture.name}</strong><span>Passthrough</span></div><p><small>MIDI ${gesture.note}</small></p></div>`;
-    }
-    return `<div class="sounding-chord"><div><strong>${gesture.name}</strong><span>${gesture.roman}</span></div><p>${gesture.noteNames.join(' &nbsp; ')}<small>MIDI ${gesture.notes.join(' · ')}</small></p></div>`;
   }
 
   #bindDevPanel(): void {
