@@ -142,14 +142,16 @@ describe('output-specific controls', () => {
 });
 
 describe('MIDI input controls', () => {
-  it('keeps input controls visible across output modes while output controls follow MIDI mode', () => {
+  it('places MIDI input in its own panel outside sound output', () => {
     const { root, output } = createAppFixture();
     const input = root.querySelector<HTMLSelectElement>('#midi-input');
     const midiOutput = root.querySelector<HTMLSelectElement>('#midi-output');
     const panic = root.querySelector<HTMLElement>('#panic');
 
     expect(input).not.toBeNull();
-    expect(root.querySelector('#midi-input-message')).toBeNull();
+    expect(input?.closest('.input-panel')).not.toBeNull();
+    expect(input?.closest('.output-panel')).toBeNull();
+    expect(root.querySelector('#midi-input-message')).not.toBeNull();
     expect(input?.closest('[hidden]')).toBeNull();
     expect(midiOutput?.closest('[hidden]')).not.toBeNull();
     expect(panic?.hidden).toBe(true);
@@ -160,13 +162,10 @@ describe('MIDI input controls', () => {
     expect(panic?.hidden).toBe(false);
   });
 
-  it('places MIDI input, MIDI output, and program controls in that order in one row', () => {
+  it('labels output choices by the sound destination they select', () => {
     const { root } = createAppFixture();
-    const row = root.querySelector<HTMLElement>('.midi-device-controls')!;
-    expect([...row.querySelectorAll('select')].map((select) => select.id)).toEqual(['midi-input', 'midi-output']);
-    expect([...row.children].map((element) => element.className)).toEqual([
-      'output-input-controls', '', 'program-controls',
-    ]);
+    expect([...root.querySelectorAll<HTMLButtonElement>('[data-output]')]
+      .map((button) => button.textContent)).toEqual(['Built-in voice', 'MIDI device']);
   });
 
   it('renders connected, detached, requesting, and suspended input states', () => {
@@ -216,6 +215,49 @@ describe('MIDI input controls', () => {
     action.click();
     expect(input.resume).toHaveBeenCalledOnce();
     expect(access.initialize).toHaveBeenCalledOnce();
+  });
+});
+
+describe('routing status', () => {
+  it('shows the active output and adds a directional MIDI input badge when connected', () => {
+    const { root, emitInput } = createAppFixture();
+    const inputStatus = root.querySelector<HTMLElement>('#input-status-pill')!;
+    const outputStatus = root.querySelector<HTMLElement>('#output-status-pill')!;
+
+    expect(inputStatus.hidden).toBe(true);
+    expect(outputStatus.textContent).toContain('Built-in voice');
+
+    emitInput(readyInput);
+    expect(inputStatus.hidden).toBe(false);
+    expect(inputStatus.textContent).toContain('MIDI In · Keyboard');
+    expect(outputStatus.textContent).toContain('Built-in voice');
+  });
+
+  it('labels connected MIDI output directionally', () => {
+    const { root, output, emitOutput } = createAppFixture();
+    output.setMode('midi');
+    emitOutput({
+      status: 'ready', message: 'Connected to Synth.',
+      outputs: [{ id: 'synth', name: 'Synth', manufacturer: 'Acme', state: 'connected' }],
+      selectedOutputId: 'synth', preferredOutputId: 'synth', preferredOutputLabel: 'Synth · Acme',
+    });
+
+    expect(root.querySelector('#output-status-pill')?.textContent).toContain('MIDI Out · Synth');
+    expect(root.querySelector('#output-message')?.textContent).toBe('Connected to Synth.');
+    expect(root.querySelector('#output-message')?.closest('[hidden]')).toBeNull();
+  });
+
+  it('keeps MIDI input warnings visible in the header and input panel', () => {
+    const { root, emitInput } = createAppFixture();
+    emitInput({
+      ...readyInput,
+      status: 'suspended',
+      message: 'Possible MIDI feedback loop detected.',
+      attachedInputId: null,
+    });
+
+    expect(root.querySelector('#input-status-pill')?.textContent).toContain('MIDI In suspended');
+    expect(root.querySelector('#midi-input-message')?.textContent).toBe('Possible MIDI feedback loop detected.');
   });
 });
 

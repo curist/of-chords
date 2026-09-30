@@ -133,6 +133,7 @@ export class App {
         <header class="hero">
           <p class="eyebrow">Of Chords</p>
           <div class="header-statuses">
+            <div class="status-pill" id="input-status-pill" hidden><span></span><b></b></div>
             <div class="status-pill" id="output-status-pill"><span></span><b>Built-in voice</b></div>
           </div>
         </header>
@@ -180,23 +181,32 @@ export class App {
           </article>
         </section>
 
+        <section class="panel input-panel" aria-labelledby="input-heading">
+          <div class="input-head">
+            <div><p class="section-label">Input</p><h2 id="input-heading">Controller input</h2><p id="midi-input-message"></p></div>
+            <div class="output-input-controls">
+              <label>MIDI Input<select id="midi-input"><option value="">No input</option></select></label>
+              <button id="midi-input-action" type="button">Connect input</button>
+            </div>
+          </div>
+        </section>
+
         <section class="panel output-panel" aria-labelledby="output-heading">
           <div class="output-head">
             <div><p class="section-label">Output</p><h2 id="output-heading">Sound output</h2><p id="output-message"></p></div>
             <div class="segmented" id="output-mode" aria-label="Sound output">
-              <button data-output="builtin">Built-in</button><button data-output="midi">MIDI</button>
+              <button data-output="builtin">Built-in voice</button><button data-output="midi">MIDI device</button>
             </div>
             <button id="panic" class="panic" data-output-panel="midi">Panic · All Notes Off</button>
           </div>
 
-          <div class="output-midi">
+          <div class="output-builtin" data-output-panel="builtin">
+            <p>Uses the browser's built-in instrument.</p>
+          </div>
+          <div class="output-midi" data-output-panel="midi">
             <div class="midi-device-controls">
-              <div class="output-input-controls">
-                <label>MIDI Input<select id="midi-input"><option value="">No input</option></select></label>
-                <button id="midi-input-action" type="button">Connect input</button>
-              </div>
-              <label data-output-panel="midi">MIDI Output<select id="midi-output"><option value="">No output selected</option></select></label>
-              <div class="program-controls" data-output-panel="midi">
+              <label>MIDI Output<select id="midi-output"><option value="">No output selected</option></select></label>
+              <div class="program-controls">
                 <button id="previous-program" aria-label="Previous MIDI program"><span>←</span><kbd>[</kbd></button>
                 <label>Program<input id="program-input" type="number" min="1" max="128" placeholder="—"></label>
                 <button id="next-program" aria-label="Next MIDI program"><span>→</span><kbd>]</kbd></button>
@@ -377,11 +387,21 @@ export class App {
     action.hidden = snapshot.status === 'ready' || snapshot.status === 'disconnected'
       || snapshot.status === 'requesting' || snapshot.status === 'unsupported';
     action.textContent = snapshot.status === 'suspended' ? 'Resume input' : 'Connect input';
+
+    this.root.querySelector<HTMLElement>('#midi-input-message')!.textContent = snapshot.message;
+    const pill = this.root.querySelector<HTMLElement>('#input-status-pill')!;
+    const attached = snapshot.inputs.find((input) => input.id === snapshot.attachedInputId);
+    pill.hidden = snapshot.preferredInputId === null && snapshot.attachedInputId === null;
+    pill.dataset.status = snapshot.status;
+    pill.querySelector('b')!.textContent = snapshot.status === 'suspended'
+      ? 'MIDI In suspended'
+      : snapshot.status === 'disconnected'
+        ? 'MIDI In disconnected'
+        : attached ? `MIDI In · ${attached.name}` : 'MIDI In';
   }
 
   #renderOutput(snapshot: OutputSnapshot): void {
     this.#mode = snapshot.mode;
-    this.root.querySelector<HTMLElement>('.midi-device-controls')!.dataset.outputMode = snapshot.mode;
     this.root.querySelectorAll<HTMLButtonElement>('[data-output]').forEach((button) => {
       button.classList.toggle('selected', button.dataset.output === snapshot.mode);
     });
@@ -405,10 +425,11 @@ export class App {
       return;
     }
     const midi = this.#latestMidi;
+    const selected = midi?.outputs.find((output) => output.id === midi.selectedOutputId);
     pill.dataset.status = midi?.status ?? 'idle';
-    pill.querySelector('b')!.textContent = midi?.selectedOutputId
-      ? 'MIDI connected'
-      : midi?.status === 'ready' ? 'MIDI ready' : midi?.status ?? 'MIDI';
+    pill.querySelector('b')!.textContent = selected
+      ? `MIDI Out · ${selected.name}`
+      : midi?.status === 'ready' ? 'MIDI Out ready' : 'MIDI Out';
     message.textContent = midi?.message ?? 'Requesting MIDI access…';
   }
 

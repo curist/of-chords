@@ -44,13 +44,15 @@ kbd { display: inline-grid; place-items: center; min-width: 28px; min-height: 27
 .sounding-chord small { display: block; margin-top: 5px; color: #777165; font-size: 10px; }
 .progression { padding-top: 13px; font-size: 17px; line-height: 1.6; }
 .roman-line { color: #e6b84b; font: 400 13px/1.6 ui-monospace, monospace; }
+.input-panel { padding: 20px; margin-bottom: 16px; }
+.input-head { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(320px, 1.5fr); align-items: end; gap: 22px; }
+.input-head p:last-child, .output-builtin p, .output-head p:last-child { margin: 5px 0 0; color: #918b7d; font-size: 13px; }
 .output-panel { display: grid; gap: 18px; padding: 20px; }
 .output-head { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 22px; }
-.output-head p:last-child { margin: 5px 0 0; color: #918b7d; font-size: 13px; }
+.output-builtin { padding-top: 16px; border-top: 1px solid #39362e; }
 .output-midi { display: grid; gap: 18px; padding-top: 16px; border-top: 1px solid #39362e; }
 [data-output-panel][hidden] { display: none; }
-.midi-device-controls { display: grid; grid-template-columns: repeat(2, minmax(250px, 1fr)) auto; align-items: end; gap: 22px; }
-.midi-device-controls[data-output-mode="builtin"] { grid-template-columns: 1fr; }
+.midi-device-controls { display: grid; grid-template-columns: minmax(250px, 1fr) auto; align-items: end; gap: 22px; }
 .midi-device-controls > label, .midi-device-controls select { width: 100%; }
 .output-input-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
 .output-input-controls label { flex: 1 1 250px; margin: 0; }
@@ -66,8 +68,10 @@ kbd { display: inline-grid; place-items: center; min-width: 28px; min-height: 27
 .program-controls button span { line-height: 1; }
 .program-controls button kbd { min-width: 20px; min-height: 20px; padding: 1px 4px; font-size: 9px; }
 .status-pill { display: flex; align-items: center; gap: 9px; padding: 9px 13px; border: 1px solid #3f3b32; border-radius: 999px; color: #aaa394; font-size: 12px; }
+.status-pill[hidden] { display: none; }
 .status-pill span { width: 8px; height: 8px; border-radius: 50%; background: #706a5f; }
 .status-pill[data-status="ready"] span { background: #83c36c; box-shadow: 0 0 9px #83c36c; }
+.status-pill[data-status="disconnected"] span, .status-pill[data-status="suspended"] span { background: #e6b84b; box-shadow: 0 0 9px rgba(230,184,75,.55); }
 .controller-toast { position: fixed; z-index: 10; top: 18px; left: 50%; display: flex; align-items: center; gap: 9px; padding: 11px 16px; border: 1px solid #514b3d; border-radius: 999px; background: #25231e; box-shadow: 0 12px 32px rgba(0,0,0,.35); color: #f4f1e8; font-size: 13px; transform: translateX(-50%); }
 .controller-toast[hidden] { display: none; }
 .controller-toast span { width: 8px; height: 8px; border-radius: 50%; background: #e6b84b; box-shadow: 0 0 9px #e6b84b; }
@@ -88,9 +92,9 @@ kbd { display: inline-grid; place-items: center; min-width: 28px; min-height: 27
   .setup > div:not(:last-child) { padding-bottom: 16px; border-right: 0; border-bottom: 1px solid #343129; }
   .chord-grid { grid-template-columns: repeat(4, 1fr); }
   .readout-grid { grid-template-columns: 1fr; }
+  .input-head { grid-template-columns: 1fr; }
   .output-head { grid-template-columns: 1fr; }
   .midi-device-controls { grid-template-columns: 1fr; }
-  .midi-device-controls[data-output-mode="builtin"] { grid-template-columns: 1fr; }
   .output-input-controls label, .midi-device-controls select { width: 100%; }
   .program-controls { grid-template-columns: 64px minmax(110px, 1fr) 64px; }
 }
