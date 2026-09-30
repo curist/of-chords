@@ -247,4 +247,105 @@ describe('WebMidiOutputManager failure boundaries', () => {
     manager.noteOn(62);
     expect(messages).toEqual([[0x90, 60, 100], [0x90, 62, 100]]);
   });
+
+  it('removes each destination listener independently on selected-port replacement', async () => {
+    const first = { id: 'one', name: 'One', state: 'connected' as const, send() {} };
+    const second = { id: 'two', name: 'Two', state: 'connected' as const, send() {} };
+    const manager = new WebMidiOutputManager(fakeNavigator(fakeAccess([first, second])), null);
+    await manager.initialize();
+    manager.selectOutput('one');
+    await Promise.resolve();
+    const removedWill = vi.fn();
+    const keptWill = vi.fn();
+    const removedDid = vi.fn();
+    const keptDid = vi.fn();
+    const unsubscribeWill = manager.onDestinationWillChange(removedWill);
+    manager.onDestinationWillChange(keptWill);
+    const unsubscribeDid = manager.onDestinationDidChange(removedDid);
+    manager.onDestinationDidChange(keptDid);
+
+    unsubscribeWill();
+    unsubscribeWill();
+    unsubscribeDid();
+    unsubscribeDid();
+    manager.selectOutput('two');
+    await Promise.resolve();
+
+    expect(removedWill).not.toHaveBeenCalled();
+    expect(keptWill).toHaveBeenCalledOnce();
+    expect(removedDid).not.toHaveBeenCalled();
+    expect(keptDid).toHaveBeenCalledOnce();
+  });
+
+  it('emits destination callbacks for physical disconnect and reconnect', async () => {
+    const port = { id: 'one', name: 'One', state: 'connected' as const, send() {} };
+    const outputs: FakeOutput[] = [port];
+    const browserAccess = fakeAccess(outputs);
+    const storage = new Map<string, string>();
+    const manager = new WebMidiOutputManager(fakeNavigator(browserAccess), {
+      getItem: (key) => storage.get(key) ?? null,
+      setItem: (key, value) => { storage.set(key, value); },
+      removeItem: (key) => { storage.delete(key); },
+    });
+    const will = vi.fn();
+    const did = vi.fn();
+    manager.onDestinationWillChange(will);
+    manager.onDestinationDidChange(did);
+    await manager.initialize();
+    manager.selectOutput('one');
+    await Promise.resolve();
+    did.mockClear();
+
+    outputs.splice(0, 1);
+    browserAccess.onstatechange?.();
+    expect(will).toHaveBeenCalledOnce();
+    expect(manager.snapshot().selectedOutputId).toBeNull();
+    outputs.push(port);
+    browserAccess.onstatechange?.();
+    await Promise.resolve();
+    expect(did).toHaveBeenCalledOnce();
+    expect(manager.snapshot().selectedOutputId).toBe('one');
+  });
+
+  it('emits destination cleanup for send failure', async () => {
+    const port = { id: 'one', name: 'One', state: 'connected' as const, send() { throw new Error('unavailable'); } };
+    const manager = new WebMidiOutputManager(fakeNavigator(fakeAccess([port])), null);
+    const will = vi.fn();
+    manager.onDestinationWillChange(will);
+    await manager.initialize();
+    manager.selectOutput('one');
+    await Promise.resolve();
+
+    manager.noteOn(60);
+    await Promise.resolve();
+
+    expect(will).toHaveBeenCalledOnce();
+  });
+
+  it('dispose clears destination listeners and its access subscription', async () => {
+    const first = { id: 'one', name: 'One', state: 'connected' as const, send() {} };
+    const second = { id: 'two', name: 'Two', state: 'connected' as const, send() {} };
+    const outputs: FakeOutput[] = [first, second];
+    const browserAccess = fakeAccess(outputs);
+    const manager = new WebMidiOutputManager(fakeNavigator(browserAccess), null);
+    await manager.initialize();
+    manager.selectOutput('one');
+    await Promise.resolve();
+    const will = vi.fn();
+    const did = vi.fn();
+    manager.onDestinationWillChange(will);
+    manager.onDestinationDidChange(did);
+
+    manager.dispose();
+    manager.dispose();
+    outputs.splice(0, 2, second);
+    browserAccess.onstatechange?.();
+    expect(manager.snapshot().selectedOutputId).toBe('one');
+    manager.selectOutput('two');
+    await Promise.resolve();
+
+    expect(manager.snapshot().outputs.map((port) => port.id)).toEqual(['two']);
+    expect(will).not.toHaveBeenCalled();
+    expect(did).not.toHaveBeenCalled();
+  });
 });

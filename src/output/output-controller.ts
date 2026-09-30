@@ -1,6 +1,7 @@
 import type { NoteSink } from '../midi/note-ledger';
 
 export type OutputMode = 'builtin' | 'midi';
+type Unsubscribe = () => void;
 
 export interface OutputSnapshot {
   readonly mode: OutputMode;
@@ -32,8 +33,8 @@ const STORAGE_KEY = 'webchords.output-mode';
 export class OutputController implements NoteSink {
   #mode: OutputMode;
   #active: NoteSink;
-  #willChange: (() => void) | null = null;
-  #didChange: (() => void) | null = null;
+  readonly #willChange = new Set<() => void>();
+  readonly #didChange = new Set<() => void>();
   readonly #listeners = new Set<(snapshot: OutputSnapshot) => void>();
 
   constructor(
@@ -60,13 +61,15 @@ export class OutputController implements NoteSink {
   }
 
   /** Fired before the active output changes, so callers can release held notes. */
-  onWillChange(listener: () => void): void {
-    this.#willChange = listener;
+  onWillChange(listener: () => void): Unsubscribe {
+    this.#willChange.add(listener);
+    return () => { this.#willChange.delete(listener); };
   }
 
   /** Fired after the active output changes, e.g. to resend a MIDI patch. */
-  onDidChange(listener: () => void): void {
-    this.#didChange = listener;
+  onDidChange(listener: () => void): Unsubscribe {
+    this.#didChange.add(listener);
+    return () => { this.#didChange.delete(listener); };
   }
 
   setMode(mode: OutputMode): void {
@@ -75,13 +78,13 @@ export class OutputController implements NoteSink {
       if (mode === 'builtin') void this.builtin.resume();
       return;
     }
-    this.#willChange?.();
+    for (const listener of this.#willChange) listener();
     this.#mode = mode;
     this.#active = this.#sinkFor(mode);
     if (mode === 'builtin') void this.builtin.resume();
     this.#storeMode(mode);
     this.#emit();
-    this.#didChange?.();
+    for (const listener of this.#didChange) listener();
   }
 
   noteOn(note: number, velocity?: number): void {

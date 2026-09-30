@@ -89,4 +89,34 @@ describe('OutputController', () => {
     expect(builtin.resume).toHaveBeenCalledOnce();
     expect(willChange).not.toHaveBeenCalled();
   });
+
+  it('removes one will-change listener without removing another', () => {
+    const output = new OutputController(new RecordingBuiltin(), new RecordingSink());
+    const first = vi.fn();
+    const second = vi.fn();
+    const unsubscribe = output.onWillChange(first);
+    output.onWillChange(second);
+
+    unsubscribe();
+    unsubscribe();
+    output.setMode('midi');
+
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledOnce();
+  });
+
+  it('removes one did-change listener without removing another', () => {
+    const output = new OutputController(new RecordingBuiltin(), new RecordingSink());
+    const first = vi.fn();
+    const second = vi.fn();
+    const unsubscribe = output.onDidChange(first);
+    output.onDidChange(second);
+
+    unsubscribe();
+    unsubscribe();
+    output.setMode('midi');
+
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledOnce();
+  });
 });

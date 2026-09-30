@@ -15,13 +15,14 @@ export interface MidiOutputSnapshot {
 
 const STORAGE_KEY = 'webchords.midi-output-id';
 const LABEL_STORAGE_KEY = 'webchords.midi-output-label';
+type Unsubscribe = () => void;
 
 export class WebMidiOutputManager implements NoteSink {
   #output: MidiOutputPortLike | null = null;
   #status: MidiStatus = 'idle';
   #message = 'MIDI access has not been requested.';
-  #destinationWillChange: (() => void) | null = null;
-  #destinationDidChange: (() => void) | null = null;
+  readonly #destinationWillChange = new Set<() => void>();
+  readonly #destinationDidChange = new Set<() => void>();
   #cleanupScheduled = false;
   readonly #listeners = new Set<(snapshot: MidiOutputSnapshot) => void>();
   readonly #unsubscribeAccess: () => void;
@@ -50,12 +51,14 @@ export class WebMidiOutputManager implements NoteSink {
     return () => this.#listeners.delete(listener);
   }
 
-  onDestinationWillChange(listener: () => void): void {
-    this.#destinationWillChange = listener;
+  onDestinationWillChange(listener: () => void): Unsubscribe {
+    this.#destinationWillChange.add(listener);
+    return () => { this.#destinationWillChange.delete(listener); };
   }
 
-  onDestinationDidChange(listener: () => void): void {
-    this.#destinationDidChange = listener;
+  onDestinationDidChange(listener: () => void): Unsubscribe {
+    this.#destinationDidChange.add(listener);
+    return () => { this.#destinationDidChange.delete(listener); };
   }
 
   restoreIfPermitted(): Promise<void> {
@@ -68,6 +71,9 @@ export class WebMidiOutputManager implements NoteSink {
 
   dispose(): void {
     this.#unsubscribeAccess();
+    this.#listeners.clear();
+    this.#destinationWillChange.clear();
+    this.#destinationDidChange.clear();
   }
 
   selectOutput(id: string | null): void {
@@ -123,11 +129,15 @@ export class WebMidiOutputManager implements NoteSink {
 
   #changeOutput(nextOutput: MidiOutputPortLike | null): void {
     const changed = this.#output !== nextOutput;
-    if (this.#output && changed) this.#destinationWillChange?.();
+    if (this.#output && changed) {
+      for (const listener of this.#destinationWillChange) listener();
+    }
     this.#output = nextOutput;
     if (changed && nextOutput) {
       queueMicrotask(() => {
-        if (this.#output === nextOutput) this.#destinationDidChange?.();
+        if (this.#output === nextOutput) {
+          for (const listener of this.#destinationDidChange) listener();
+        }
       });
     }
   }
@@ -145,7 +155,7 @@ export class WebMidiOutputManager implements NoteSink {
         this.#cleanupScheduled = true;
         queueMicrotask(() => {
           this.#cleanupScheduled = false;
-          this.#destinationWillChange?.();
+          for (const listener of this.#destinationWillChange) listener();
         });
       }
     }

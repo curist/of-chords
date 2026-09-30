@@ -7,6 +7,7 @@ import { WebMidiAccess } from './midi/midi-access';
 import { WebMidiInputManager } from './midi/midi-input';
 import { NoteLedger } from './midi/note-ledger';
 import { WebMidiOutputManager } from './midi/midi-output';
+import { bindDestinationLifecycle } from './output/destination-lifecycle';
 import { OutputController } from './output/output-controller';
 import { InstrumentStore } from './state/store';
 import { App } from './ui/app';
@@ -31,12 +32,9 @@ const midiInput = new WebMidiInputManager(
   (action) => store.dispatch(action),
   { storage: safeLocalStorage() },
 );
-// Releasing held notes before the destination changes prevents stuck voices,
-// whether we swap MIDI devices or switch between the built-in voice and MIDI.
-output.onWillChange(() => store.dispatch({ type: 'panic' }));
-output.onDidChange(() => store.dispatch({ type: 'resend-program' }));
-midi.onDestinationWillChange(() => store.dispatch({ type: 'panic' }));
-midi.onDestinationDidChange(() => store.dispatch({ type: 'resend-program' }));
+const cleanupDestinationLifecycle = bindDestinationLifecycle(output, midi, (action) => store.dispatch(action));
+// Retained for the app-wide cleanup stack introduced in Task 2.
+void cleanupDestinationLifecycle;
 
 const app = new App(root, store, midi, output, synth, midiInput, midiAccess);
 void midiAccess.restoreIfPermitted();
