@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Open the local URL shown by Vite. The built-in voice works immediately. To play from a MIDI controller, click **Connect input**, grant MIDI access, then choose a device under **MIDI Input**. To use an external sound destination, choose **MIDI** under Sound output, grant access if prompted, and select a **MIDI Output**. You can keep **Built-in** selected while playing from MIDI input.
+Open the local URL shown by Vite. The built-in voice works immediately. To play from a MIDI controller, click **Connect input**, grant MIDI access, then choose a device under **MIDI Input**. To use an external sound destination, choose **MIDI device** under Sound output, grant access if prompted, and select a **MIDI Output**. You can keep **Built-in voice** selected while playing from MIDI input.
 
 ## Controls
 
