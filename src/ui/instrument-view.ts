@@ -106,7 +106,7 @@ export class InstrumentView {
       this.#listen(this.#programInput, 'change', () => {
         const value = this.#programInput.value;
         const program = Number(value);
-        if (value.trim() !== '' && Number.isInteger(program) && program >= 1 && program <= 128) {
+        if (value.trim() !== '' && Number.isFinite(program)) {
           this.store.dispatch({ type: 'set-program', program: program - 1 });
         }
         this.#programInput.blur();

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { describeGamepadStatus, GamepadInput, type GamepadEventLike, type GamepadEventTarget, type GamepadLike, type GamepadNavigator, type FrameScheduler } from './gamepad';
 import type { InstrumentAction } from '../state/instrument';
+import { InstrumentStore } from '../state/store';
 
 class FakeGamepadTarget implements GamepadEventTarget {
   readonly listeners = new Map<string, Set<(event: GamepadEventLike) => void>>();
@@ -60,6 +61,40 @@ function gamepad(index: number, pressed: readonly number[] = []): GamepadLike {
 }
 
 describe('GamepadInput', () => {
+  it.each(['dispatch', 'activating', 'ready'] as const)('stops an active poll when detached from its first %s callback', (source) => {
+    const target = new FakeGamepadTarget();
+    const frames = new FakeFrames();
+    let current = [gamepad(0), gamepad(1, [0, 1])];
+    const actions: InstrumentAction[] = [];
+    const statuses: string[] = [];
+    const store = new InstrumentStore({ acquire() {}, release() {}, panic() {}, programChange() {} });
+    const detach = new GamepadInput(target, { getGamepads: () => current }, frames, (action) => {
+      actions.push(action);
+      store.dispatch(action);
+      if (source === 'dispatch' && action.type === 'press') detach();
+    }, (status) => {
+      statuses.push(status);
+      if (source === status) detach();
+    }).attach();
+
+    frames.run();
+    if (source === 'dispatch') {
+      current = [gamepad(0, [0, 1, 2]), gamepad(1, [0, 1])];
+      frames.run();
+    }
+    detach();
+    frames.run();
+
+    expect(actions).toEqual(source === 'dispatch' ? [
+      { type: 'press', owner: 'gamepad:0:button:0', degree: 1 },
+      { type: 'release', owner: 'gamepad:0:button:0' },
+    ] : []);
+    expect(store.getState().active).toEqual({});
+    expect(statuses.at(-1)).toBe('hidden');
+    expect(frames.pending).toBe(0);
+    expect(target.removals).toEqual(['gamepadconnected', 'gamepaddisconnected']);
+  });
+
   it('uses the first controller press only to activate, then dispatches later button edges', () => {
     const target = new FakeGamepadTarget();
     const frames = new FakeFrames();

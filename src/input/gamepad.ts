@@ -69,26 +69,40 @@ export class GamepadInput {
   ) {}
 
   attach(): () => void {
-    const connected = (event: GamepadEventLike) => this.#connect(event.gamepad);
-    const disconnected = (event: GamepadEventLike) => this.#disconnect(event.gamepad.index);
+    // Each attachment has its own lifetime, so an old poll stays invalid even
+    // if a callback detaches and then attaches this input again.
+    let attached = true;
+    const isAttached = () => attached;
+    const connected = (event: GamepadEventLike) => {
+      if (attached) this.#connect(event.gamepad);
+    };
+    const disconnected = (event: GamepadEventLike) => {
+      if (attached) this.#disconnect(event.gamepad.index);
+    };
     this.target.addEventListener('gamepadconnected', connected);
     this.target.addEventListener('gamepaddisconnected', disconnected);
     this.updateStatus('hidden');
 
     const poll = () => {
-      for (const gamepad of this.navigator.getGamepads()) {
+      if (!attached) return;
+      this.#frameId = null;
+      const gamepads = this.navigator.getGamepads();
+      if (!attached) return;
+      for (const gamepad of gamepads) {
+        if (!attached) return;
         if (!gamepad?.connected) continue;
         if (!this.#controllers.has(gamepad.index)) this.#connect(gamepad);
-        this.#update(gamepad);
+        if (!attached) return;
+        this.#update(gamepad, isAttached);
       }
+      if (!attached) return;
       this.#frameId = this.frames.request(poll);
     };
     this.#frameId = this.frames.request(poll);
 
-    let detached = false;
     return () => {
-      if (detached) return;
-      detached = true;
+      if (!attached) return;
+      attached = false;
       this.target.removeEventListener('gamepadconnected', connected);
       this.target.removeEventListener('gamepaddisconnected', disconnected);
       if (this.#frameId !== null) {
@@ -108,7 +122,7 @@ export class GamepadInput {
     this.updateStatus('activating');
   }
 
-  #update(gamepad: GamepadLike): void {
+  #update(gamepad: GamepadLike, isAttached: () => boolean): void {
     const controller = this.#controllers.get(gamepad.index);
     if (!controller) return;
     if (controller.status === 'activating') {
@@ -121,6 +135,7 @@ export class GamepadInput {
     }
 
     for (const [buttonIndex, degree] of DEGREE_BUTTONS) {
+      if (!isAttached() || this.#controllers.get(gamepad.index) !== controller) return;
       const pressed = Boolean(gamepad.buttons[buttonIndex]?.pressed);
       const wasPressed = controller.pressed.has(buttonIndex);
       const owner = `gamepad:${gamepad.index}:button:${buttonIndex}`;

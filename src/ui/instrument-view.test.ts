@@ -53,7 +53,7 @@ describe('InstrumentView', () => {
     expect(store.getState().mode).toBe('major');
   });
 
-  it.each(['', ' ', 'NaN', 'Infinity', '1.5', '0', '129'])('blurs without dispatching invalid program %j', (value) => {
+  it.each(['', ' ', 'NaN', 'Infinity', '-Infinity'])('blurs without dispatching invalid program %j', (value) => {
     const { root, store } = fixture();
     const dispatch = vi.spyOn(store, 'dispatch');
     const input = root.querySelector<HTMLInputElement>('#program-input')!;
@@ -65,12 +65,19 @@ describe('InstrumentView', () => {
     expect(store.getState().program).toBeNull();
   });
 
-  it.each([[1, 0], [128, 127]])('maps displayed program %i to zero-based program %i', (displayed, expected) => {
+  it.each([
+    [1, 0, 0], [128, 127, 127], [0, -1, 0], [129, 128, 127], [42.5, 41.5, 41],
+  ])('dispatches displayed program %s as %s for reducer normalization to %s', (displayed, dispatched, expected) => {
     const { root, store } = fixture();
+    const dispatch = vi.spyOn(store, 'dispatch');
     const input = root.querySelector<HTMLInputElement>('#program-input')!;
     input.value = String(displayed);
+    input.focus();
     input.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(dispatch).toHaveBeenCalledExactlyOnceWith({ type: 'set-program', program: dispatched });
     expect(store.getState().program).toBe(expected);
+    expect(input.value).toBe(String(expected + 1));
+    expect(document.activeElement).not.toBe(input);
   });
 
   it('renders chord pads, active chords, history, and idle copy', () => {

@@ -153,7 +153,7 @@ Input and output managers will continue to own their distinct connection state, 
 
 - an ID storage key and label storage key supplied at construction;
 - safe reads when storage is missing or throws;
-- atomic best-effort writes of ID and display label;
+- independent best-effort writes of ID and display label;
 - best-effort removal of both values; and
 - retrieval of the remembered ID and label.
 
